@@ -1,59 +1,38 @@
-from typing import List
+from typing import Dict
 
 
 class FastqTrieNode:
-    children: List[...]
-
-    __slots__ = ["children"]
-
-    def __init__(self, size: int):
-        children = [None] * size
-
-    def is_leaf(self):
-        return False
-
-class FastqTrieLeaf:
+    children: Dict
     count: int
     suffix: str
 
-    __slots__ = ["count", "suffix"]
+    __slots__ = ["count", "suffix", "children"]
 
-    def __init__(self, suffix):
-        self.count = 1
-        self.suffix = suffix
-
-    def is_leaf(self):
-        return True
-
-class FastqTrie(FastqTrieNode):
-    __slots__ = ["charmap", "alphabet_size"]
+    def is_terminal(self):
+        return bool(self.children)
 
     def __init__(self):
-        self.charmap = {}
-        self.alphabet_size = 0
-        super().__init__(self.alphabet_size)
+        self.children: Dict[FastqTrieNode] = {}
+        self.count = 0
+        self.suffix = ""
 
     def add_sequence(self, sequence: str):
-        node = self
+        next_node = self
         for i, char in enumerate(sequence):
+            node = next_node
+            node.count += 1
             try:
-                index = self.charmap[char]
+                next_node = node.children[char]
             except KeyError:
-                self.charmap[char] = self.alphabet_size
-                index = self.alphabet_size
-                self.alphabet_size += 1
-            try:
-                next_node = node.children[index]
-            except IndexError:
-                node.children.extend(
-                    [None] * (self.alphabet_size - len(node.children)))
-                next_node = None
-            if next_node is None:
-                node.children[index] = FastqTrieLeaf(sequence[i + 1:])
-            if isinstance(next_node, FastqTrieLeaf):
-                if next_node.suffix == sequence[i + 1:]:
+                next_node = FastqTrieNode()
+                next_node.count = 1
+                next_node.suffix = sequence[i + 1:]
+                next_node.suffix = ""
+                node.children[char] = next_node
+                break
+            if next_node.is_terminal():
+                end_sequence = sequence[i + 1:]
+                if next_node.suffix == end_sequence:
                     next_node.count += 1
-                else:
-
-
-            elif isinstance(next_node, FastqTrieNode):
+                    break
+                next_node.add_sequence(next_node.suffix)
