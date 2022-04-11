@@ -8,8 +8,20 @@ class FastqTrieNode:
 
     __slots__ = ["count", "suffix", "children"]
 
+    def __getitem__(self, item):
+        return self.children[item]
+
+    def __setitem__(self, key, value):
+        self.children[key] = value
+
+    def __repr__(self):
+        if self.is_terminal():
+            return f"FastqTrie LeaveNode {self.count} {self.suffix}"
+        else:
+            return f"FastqTrie Node, keys: {tuple(self.children.keys())}"
+
     def is_terminal(self):
-        return bool(self.children)
+        return not self.children
 
     def __init__(self):
         self.children: Dict[FastqTrieNode] = {}
@@ -22,13 +34,12 @@ class FastqTrieNode:
             node = next_node
             node.count += 1
             try:
-                next_node = node.children[char]
+                next_node = node[char]
             except KeyError:
                 next_node = FastqTrieNode()
                 next_node.count = 1
                 next_node.suffix = sequence[i + 1:]
-                next_node.suffix = ""
-                node.children[char] = next_node
+                node[char] = next_node
                 break
             if next_node.is_terminal():
                 end_sequence = sequence[i + 1:]
