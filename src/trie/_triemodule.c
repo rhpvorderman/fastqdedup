@@ -70,6 +70,23 @@ TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     return new_node;
 }
 
+static void
+TrieNode_Destroy(TrieNode * trie_node) {
+    if (trie_node == NULL) {
+        return;
+    }
+    if (!TrieNode_IS_TERMINAL(trie_node)){
+        // Destroy children first
+        uint32_t alphabet_size = trie_node->alphabet_size;
+        uint32_t i;
+        for (i=0; i < alphabet_size; i += 1){
+            TrieNode_Destroy(trie_node->children[i]);
+        }
+    }
+    PyMem_Free(trie_node);
+    return;
+}
+
 static TrieNode *
 TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size) {
     if (suffix_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
@@ -139,4 +156,16 @@ TrieNode_AddSequence(TrieNode * trie_node,
         return 0;
     }
     return TrieNode_AddSequence(next_node, sequence + 1, sequence_size - 1, alphabet_size, charmap);
+}
+
+typedef struct {
+    PyObject_HEAD
+    uint8_t charmap[256];
+    uint8_t alphabet_size;
+    TrieNode * root;
+} Trie;
+
+static void 
+Trie_Dealloc(Trie * self) {
+    TrieNode_Destroy(self->root);
 }
