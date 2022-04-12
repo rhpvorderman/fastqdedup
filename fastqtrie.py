@@ -1,4 +1,8 @@
+#!/usr/bin/env python3
+import sys
 from typing import Dict
+
+import dnaio
 
 
 class FastqTrieNode:
@@ -47,3 +51,15 @@ class FastqTrieNode:
                     next_node.count += 1
                     break
                 next_node.add_sequence(next_node.suffix)
+
+
+def main():
+    root = FastqTrieNode()
+    with dnaio.open(sys.argv[1], mode="r") as fastq_reader:
+        for record in fastq_reader:
+            root.add_sequence(record.sequence)
+    input("Finished?")
+
+
+if __name__ == "__main__":
+    main()
