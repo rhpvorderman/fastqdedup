@@ -6,7 +6,7 @@
 typedef struct {
     uint32_t alphabet_size;
     uint32_t count;
-    TrieNode * children[0];
+    void * children[0];
 } TrieNode;
 
 #define TRIE_NODE_TERMINAL_FLAG     0x80000000
@@ -28,9 +28,10 @@ TrieNode_GetChild(TrieNode * parent, size_t index) {
     if (index >= parent->alphabet_size) {
         return NULL;
     }
-    return parent->children[index];
+    return (TrieNode *)(parent->children[index]);
 }
 
+#define TrieNode_GET_CHILD(n, i) ((TrieNode *)(n->children[i]))
 static TrieNode *
 TrieNode_New(uint32_t alphabet_size) {
     if (alphabet_size > TRIE_NODE_ALPHABET_MAX_SIZE) {
@@ -40,7 +41,8 @@ TrieNode_New(uint32_t alphabet_size) {
     size_t trie_node_size = sizeof(TrieNode) + sizeof(TrieNode *) * alphabet_size;
     TrieNode * new = PyMem_Malloc(trie_node_size);
     if (new == NULL) {
-        return PyErr_NoMemory();
+        PyErr_NoMemory();
+        return NULL;
     }
     memset(new, 0, trie_node_size);
     new->alphabet_size = alphabet_size;
@@ -60,7 +62,8 @@ TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     size_t new_size = sizeof(TrieNode) + sizeof(TrieNode *) * alphabet_size;
     TrieNode * new_node = PyMem_Realloc(trie_node, new_size);
     if (new_node == NULL) {
-        return PyErr_NoMemory();
+        PyErr_NoMemory();
+        return NULL;
     }
     new_node->alphabet_size = alphabet_size;
     if (alphabet_size > old_alphabet_size) {
@@ -80,7 +83,7 @@ TrieNode_Destroy(TrieNode * trie_node) {
         uint32_t alphabet_size = trie_node->alphabet_size;
         uint32_t i;
         for (i=0; i < alphabet_size; i += 1){
-            TrieNode_Destroy(trie_node->children[i]);
+            TrieNode_Destroy(TrieNode_GET_CHILD(trie_node, i));
         }
     }
     PyMem_Free(trie_node);
@@ -96,7 +99,8 @@ TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size) {
     size_t leaf_node_size = sizeof(TrieNode) + suffix_size;
     TrieNode *  new = PyMem_Malloc(leaf_node_size);
     if (new == NULL) {
-        return PyErr_NoMemory();
+        PyErr_NoMemory();
+        return NULL;
     }
     _TrieNode_SET_SUFFIX_SIZE(new, suffix_size);
     new->count = 1;
@@ -129,7 +133,7 @@ TrieNode_AddSequence(TrieNode * trie_node,
             return -1;
         }
         memcpy(tmp, suffix, suffix_size);
-        TrieNode_Resize(trie_node, alphabet_size);
+        TrieNode_Resize(trie_node, 0);
         int ret = TrieNode_AddSequence(trie_node, tmp, suffix_size, alphabet_size, charmap);
         PyMem_Free(tmp);
         if (ret != 0){
@@ -138,21 +142,21 @@ TrieNode_AddSequence(TrieNode * trie_node,
     }
 
     uint8_t character = sequence[0];
-    uint8_t node_character = charmap[character];
-    if (node_character == 255) {
+    uint8_t node_index = charmap[character];
+    if (node_index == 255) {
         charmap[character] = *alphabet_size;
         *alphabet_size = *alphabet_size + 1;
     }
-    if (node_character >= trie_node->alphabet_size) {
-        TrieNode_Resize(trie_node, node_character + 1);
+    if (node_index >= trie_node->alphabet_size) {
+        TrieNode_Resize(trie_node, node_index + 1);
     }
-    TrieNode * next_node = trie_node->children[node_character];
+    TrieNode * next_node = TrieNode_GET_CHILD(trie_node, node_index);
     if (next_node == NULL) {
         next_node = TrieNode_NewLeaf(sequence + 1, sequence_size -1);
         if (next_node == NULL) {
             return -1;
         }
-        trie_node->children[node_character] = next_node;
+        trie_node->children[node_index] = next_node;
         return 0;
     }
     return TrieNode_AddSequence(next_node, sequence + 1, sequence_size - 1, alphabet_size, charmap);
@@ -182,7 +186,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
     new_trie->root = TrieNode_New(0);
-    return new_trie;
+    return (PyObject *)new_trie;
 }
 
 PyDoc_STRVAR(Trie_add_sequence__doc__,
@@ -225,7 +229,7 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
-    NULL
+    {NULL}
 };
 
 static PyTypeObject Trie_Type = {
@@ -236,3 +240,30 @@ static PyTypeObject Trie_Type = {
     .tp_new = Trie__new__,
     .tp_methods = Trie_methods,
 };
+
+
+static struct PyModuleDef _trie_module = {
+    PyModuleDef_HEAD_INIT,
+    "_trie",   /* name of module */
+    NULL, /* module documentation, may be NULL */
+    -1,
+    NULL  /* module methods */
+};
+
+PyMODINIT_FUNC
+PyInit__trie(void)
+{
+    PyObject *m;
+
+    m = PyModule_Create(&_trie_module);
+    if (m == NULL)
+        return NULL;
+
+    if (PyType_Ready(&Trie_Type) < 0)
+        return NULL;
+    PyObject * TrieType = (PyObject *)&Trie_Type;
+    Py_INCREF(TrieType);
+    if (PyModule_AddObject(m, "Trie", TrieType) < 0)
+        return NULL;
+    return m;
+}
