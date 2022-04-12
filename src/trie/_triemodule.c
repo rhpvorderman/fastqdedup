@@ -169,3 +169,70 @@ static void
 Trie_Dealloc(Trie * self) {
     TrieNode_Destroy(self->root);
 }
+
+static PyObject *
+Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
+    char * keywords[] = {"", NULL};
+    const char *format = "|:Trie.__new__";
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, format, keywords)) {
+        return NULL;
+    }
+    Trie * new_trie = PyObject_New(Trie, type);
+    new_trie->alphabet_size = 0;
+    memset(new_trie->charmap, 255, 256);
+    new_trie->root = TrieNode_New(0);
+    return new_trie;
+}
+
+PyDoc_STRVAR(Trie_add_sequence__doc__,
+"add_sequence($self, sequence, /)\n"
+"--\n"
+"\n"
+"Adds a sequence to the trie.\n"
+"\n"
+"  sequence\n"
+"    An ASCII string.\n"
+"\n");
+
+#define TRIE_ADD_SEQUENCE_METHODDEF    \
+    {"add_sequence", (PyCFunction)(void(*)(void))Trie_add_sequence, METH_O, \
+     Trie_add_sequence__doc__}
+
+static PyObject * 
+Trie_add_sequence(Trie *self, PyObject * sequence) {
+    if (!PyUnicode_CheckExact(sequence)) {
+        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s", 
+            Py_TYPE(sequence)->tp_name);
+        return NULL;
+    }
+    if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
+        PyErr_SetString(PyExc_ValueError, 
+                        "Sequence must consist only of ASCII characters");
+        return NULL;
+    }
+    uint8_t * seq = PyUnicode_DATA(sequence);
+    Py_ssize_t seq_size = PyUnicode_GET_LENGTH(sequence);
+    if (seq_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
+        PyErr_Format(
+            PyExc_ValueError, 
+            "Sequences larger than %d can not be stored in the Trie",
+            TRIE_NODE_SUFFIX_MAX_SIZE);
+        return NULL;
+    }
+    TrieNode_AddSequence(self->root, seq, seq_size, &(self->alphabet_size), self->charmap); 
+}
+
+static PyMethodDef Trie_methods[] = {
+    TRIE_ADD_SEQUENCE_METHODDEF,
+    NULL
+};
+
+static PyTypeObject Trie_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "_trie.Trie",
+    .tp_basicsize = sizeof(Trie),
+    .tp_dealloc = (destructor)Trie_Dealloc,
+    .tp_new = Trie__new__,
+    .tp_methods = Trie_methods,
+};
