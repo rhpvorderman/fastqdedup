@@ -16,7 +16,7 @@ typedef struct {
 #define TrieNode_IS_TERMINAL(n) (n->alphabet_size & TRIE_NODE_TERMINAL_FLAG)
 #define TrieNode_GET_SUFFIX_SIZE(n) (assert (TrieNode_IS_TERMINAL(n)), \
     n->alphabet_size & TRIE_NODE_SUFFIX_SIZE_MASK)
-#define _TrieNode_SET_SUFFIX_SIZE(n, s) (n->alphabet_size = TRIE_NODE_TERMINAL_FLAG & s)
+#define _TrieNode_SET_SUFFIX_SIZE(n, s) (n->alphabet_size = TRIE_NODE_TERMINAL_FLAG | s)
 #define TrieNode_GET_SUFFIX(n) (assert (TrieNode_IS_TERMINAL(n)), \
     (uint8_t *)n->children)
 
@@ -109,32 +109,33 @@ TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size) {
 }
 
 static int
-TrieNode_AddSequence(TrieNode * trie_node, 
+TrieNode_AddSequence(TrieNode ** trie_node,
                      uint8_t * sequence, 
                      uint32_t sequence_size, 
                      uint8_t *alphabet_size, 
                      uint8_t * charmap) {
+    TrieNode * this_node = trie_node[0];
     if (sequence_size == 0) {
         return 0;
     }
-
-    if (TrieNode_IS_TERMINAL(trie_node)) {
-        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(trie_node);
+    if (TrieNode_IS_TERMINAL(this_node)) {
+        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
         if (sequence_size == suffix_size) {
-            if (memcmp(TrieNode_GET_SUFFIX(trie_node), sequence, sequence_size) == 0){
-                trie_node->count += 1;
+            if (memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
+                this_node->count += 1;
                 return 0;
             }
         }
-        uint8_t * suffix = TrieNode_GET_SUFFIX(trie_node);
+        uint8_t * suffix = TrieNode_GET_SUFFIX(this_node);
         uint8_t * tmp = PyMem_Malloc(suffix_size);
         if (tmp == NULL) {
             PyErr_NoMemory();
             return -1;
         }
         memcpy(tmp, suffix, suffix_size);
-        TrieNode_Resize(trie_node, 0);
+        this_node->alphabet_size = 0;
         int ret = TrieNode_AddSequence(trie_node, tmp, suffix_size, alphabet_size, charmap);
+        this_node = trie_node[0];
         PyMem_Free(tmp);
         if (ret != 0){
             return ret;
@@ -144,22 +145,28 @@ TrieNode_AddSequence(TrieNode * trie_node,
     uint8_t character = sequence[0];
     uint8_t node_index = charmap[character];
     if (node_index == 255) {
-        charmap[character] = *alphabet_size;
-        *alphabet_size = *alphabet_size + 1;
+        node_index = *alphabet_size;
+        charmap[character] = node_index;
+        *alphabet_size = node_index + 1;
     }
-    if (node_index >= trie_node->alphabet_size) {
-        TrieNode_Resize(trie_node, node_index + 1);
+    if (node_index >= this_node->alphabet_size) {
+        TrieNode * new_node = TrieNode_Resize(this_node, node_index + 1);
+        if (new_node == NULL) {
+            return -1;
+        }
+        this_node = new_node;
+        trie_node[0] = this_node;
     }
-    TrieNode * next_node = TrieNode_GET_CHILD(trie_node, node_index);
+    TrieNode * next_node = TrieNode_GetChild(this_node, node_index);
     if (next_node == NULL) {
         next_node = TrieNode_NewLeaf(sequence + 1, sequence_size -1);
         if (next_node == NULL) {
             return -1;
         }
-        trie_node->children[node_index] = next_node;
+        this_node->children[node_index] = next_node;
         return 0;
     }
-    return TrieNode_AddSequence(next_node, sequence + 1, sequence_size - 1, alphabet_size, charmap);
+    return TrieNode_AddSequence(&next_node, sequence + 1, sequence_size - 1, alphabet_size, charmap);
 }
 
 typedef struct {
@@ -176,7 +183,7 @@ Trie_Dealloc(Trie * self) {
 
 static PyObject *
 Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    char * keywords[] = {"", NULL};
+    char * keywords[] = {NULL};
     const char *format = "|:Trie.__new__";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords)) {
@@ -224,7 +231,10 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    TrieNode_AddSequence(self->root, seq, seq_size, &(self->alphabet_size), self->charmap); 
+    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap) == 0) {
+        Py_RETURN_NONE;
+    }
+    return NULL;
 }
 
 static PyMethodDef Trie_methods[] = {
