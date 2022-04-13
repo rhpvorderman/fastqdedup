@@ -310,8 +310,8 @@ PyDoc_STRVAR(Trie_check_presence_hamming__doc__,
 "    The maximal Hamming distance\n"
 "\n");
 
-#define TRIE_CHECK_PRESENCE_HAMMING_METHODDEF    \
-    {"check_presence_hamming", (PyCFunction)(void(*)(void))Trie_check_presence_hamming, \
+#define TRIE_SEQUENCE_PRESENT_HAMMING_METHODDEF    \
+    {"sequence_present_hamming", (PyCFunction)(void(*)(void))Trie_check_presence_hamming, \
     METH_VARARGS | METH_KEYWORDS, Trie_check_presence_hamming__doc__}
 
 static PyObject *
@@ -349,7 +349,7 @@ Trie_check_presence_hamming(Trie *self, PyObject *args, PyObject* kwargs) {
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
-    TRIE_CHECK_PRESENCE_HAMMING_METHODDEF,
+    TRIE_SEQUENCE_PRESENT_HAMMING_METHODDEF,
     {NULL}
 };
 
