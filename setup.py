@@ -17,7 +17,7 @@ setup(
     zip_safe=False,
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    #package_data={'umidedup': ['py.typed', '*.pyi']},
+    package_data={'umidedup': ['py.typed', '*.pyi']},
     license_file="LICENSE",
     url="https://github.com/rhpvorderman/umidedup",
     classifiers=[

@@ -1,8 +1,8 @@
-from ._trie import Trie
+import sys
 
 import dnaio
 
-import sys
+from ._trie import Trie
 
 
 def main():
