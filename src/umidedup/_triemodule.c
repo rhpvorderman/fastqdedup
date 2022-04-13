@@ -116,6 +116,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                      uint8_t * charmap) {
     TrieNode * this_node = trie_node[0];
     if (sequence_size == 0) {
+        this_node->count += 1;
         return 0;
     }
     if (TrieNode_IS_TERMINAL(this_node)) {
@@ -134,6 +135,8 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         }
         memcpy(tmp, suffix, suffix_size);
         this_node->alphabet_size = 0;
+        // TODO: Add code when leaf node has a count greater than 1;
+        this_node->count = 0;
         int ret = TrieNode_AddSequence(trie_node, tmp, suffix_size, alphabet_size, charmap);
         this_node = trie_node[0];
         PyMem_Free(tmp);
@@ -167,6 +170,63 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         return 0;
     }
     return TrieNode_AddSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, alphabet_size, charmap);
+}
+
+static int 
+TrieNode_SequencePresentHamming(
+    TrieNode * trie_node, 
+    uint8_t * sequence, 
+    uint32_t sequence_length, 
+    int max_distance,
+    const uint8_t * charmap) 
+{
+    if (max_distance < 0) {
+        return 0;
+    }
+    if (sequence_length == 0) {
+        return (trie_node->count > 0);
+    }
+    if TrieNode_IS_TERMINAL(trie_node) {
+        uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
+        if (sequence_length != suffix_length) {
+            // Hamming is technically only valid for sequences with the same
+            // length. 
+            return 0;
+        }
+        uint8_t * suffix = TrieNode_GET_SUFFIX(trie_node);
+        for (uint32_t i=0; i < suffix_length; i++) {
+            if (sequence[i] != suffix[i]) {
+                max_distance -= 1;
+                if (max_distance < 0) {
+                    return 0;
+                }
+            }
+        }
+        return 1;
+    }
+
+    uint8_t character = sequence[0];
+    uint8_t node_index = charmap[character];
+    if (node_index == 255) {
+        return 0;
+    }
+    TrieNode * child = TrieNode_GetChild(trie_node, node_index);
+    if (child == NULL) {
+        // Mismatch, try all children and deduct a point from the max distance.
+        max_distance -= 1;
+        for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
+            child = TrieNode_GET_CHILD(trie_node, i);
+            int ret = TrieNode_SequencePresentHamming(
+                child, sequence + 1, sequence_length -1, max_distance, charmap);
+            if (ret) {
+                return ret; 
+            }
+        }
+        return 0;
+    }
+    // Found a match, continue the computation with the child node.
+    return TrieNode_SequencePresentHamming(
+        child, sequence + 1, sequence_length -1, max_distance, charmap);
 }
 
 typedef struct {
