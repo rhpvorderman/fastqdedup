@@ -319,10 +319,15 @@ Trie_check_presence_hamming(Trie *self, PyObject *args, PyObject* kwargs) {
     PyObject * sequence = NULL;
     int max_distance = 0;
     char * keywords[] = {"", "max_distance", NULL};
-    const char *format = "O!|i:Trie.check_presence_hamming";
+    const char *format = "O|i:Trie.check_presence_hamming";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords,
-            &sequence, &PyUnicode_Type, &max_distance)) {
+            &sequence, &max_distance)) {
+        return NULL;
+    }
+    if (!PyUnicode_CheckExact(sequence)) {
+        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s", 
+            Py_TYPE(sequence)->tp_name);
         return NULL;
     }
     if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
