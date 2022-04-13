@@ -27,8 +27,11 @@ def main():
     trie = Trie()
     with dnaio.open(sys.argv[1], mode="r") as fastq_reader:
         for record in fastq_reader:
-            trie.add_sequence(record.sequence)
-
+            sequence = record.sequence
+            if not trie.sequence_present_hamming(sequence, 2):
+                trie.add_sequence(sequence)
+            else:
+                print(f"Filtered: {sequence}")
 
 if __name__ == "__main__":
     main()
