@@ -297,8 +297,54 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
     return NULL;
 }
 
+PyDoc_STRVAR(Trie_check_presence_hamming__doc__,
+"check_presence_hamming($self, sequence, /, max_distance=0)\n"
+"--\n"
+"\n"
+"Check if a sequence is present at a maximal Hamming distance\n"
+"Sequences with unequal size are considered unequal.\n"
+"\n"
+"  sequence\n"
+"    An ASCII string.\n"
+"  max_distance\n"
+"    The maximal Hamming distance\n"
+"\n");
+
+#define TRIE_CHECK_PRESENCE_HAMMING_METHODDEF    \
+    {"check_presence_hamming", (PyCFunction)(void(*)(void))Trie_check_presence_hamming, \
+    METH_VARARGS | METH_KEYWORDS, Trie_check_presence_hamming__doc__}
+
+static PyObject *
+Trie_check_presence_hamming(Trie *self, PyObject *args, PyObject* kwargs) {
+    PyObject * sequence = NULL;
+    int max_distance = 0;
+    char * keywords[] = {"", "max_distance", NULL};
+    const char *format = "O!|i:Trie.check_presence_hamming";
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, format, keywords,
+            &sequence, &PyUnicode_Type, &max_distance)) {
+        return NULL;
+    }
+    if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
+        PyErr_SetString(PyExc_ValueError, "sequence must contain only ASCII characters");
+        return NULL;
+    }
+    uint8_t * seq = (uint8_t *)PyUnicode_DATA(sequence);
+    Py_ssize_t seq_size = PyUnicode_GET_LENGTH(sequence);
+    if (seq_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
+        PyErr_Format(
+            PyExc_ValueError, 
+            "Sequences larger than %d can not be stored in the Trie",
+            TRIE_NODE_SUFFIX_MAX_SIZE);
+        return NULL;
+    }
+    int ret = TrieNode_SequencePresentHamming(self->root, seq, seq_size, max_distance, self->charmap);
+    return PyBool_FromLong(ret);
+}
+
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
+    TRIE_CHECK_PRESENCE_HAMMING_METHODDEF,
     {NULL}
 };
 
