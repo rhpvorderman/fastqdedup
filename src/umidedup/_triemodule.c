@@ -216,6 +216,9 @@ TrieNode_SequencePresentHamming(
         max_distance -= 1;
         for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
             child = TrieNode_GET_CHILD(trie_node, i);
+            if (child == NULL) {
+                continue;
+            }
             int ret = TrieNode_SequencePresentHamming(
                 child, sequence + 1, sequence_length -1, max_distance, charmap);
             if (ret) {
