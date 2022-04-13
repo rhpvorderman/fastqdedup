@@ -207,9 +207,6 @@ TrieNode_SequencePresentHamming(
 
     uint8_t character = sequence[0];
     uint8_t node_index = charmap[character];
-    if (node_index == 255) {
-        return 0;
-    }
     TrieNode * child = TrieNode_GetChild(trie_node, node_index);
     if (child == NULL) {
         // Mismatch, try all children and deduct a point from the max distance.
