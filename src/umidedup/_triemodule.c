@@ -166,7 +166,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         this_node->children[node_index] = next_node;
         return 0;
     }
-    return TrieNode_AddSequence(&next_node, sequence + 1, sequence_size - 1, alphabet_size, charmap);
+    return TrieNode_AddSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, alphabet_size, charmap);
 }
 
 typedef struct {
