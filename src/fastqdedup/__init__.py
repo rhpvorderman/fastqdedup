@@ -90,8 +90,8 @@ def argument_parser() -> argparse.ArgumentParser:
              "duplication.")
     parser.add_argument(
         "-o", "--output", action="append", required=False,
-        help="Output file, must be specified multiple times for multiple "
-             "input files. For example ``fastqdedup -o dedupR1.fastq "
+        help="Output file (optional), must be specified multiple times for "
+             "multiple input files. For example ``fastqdedup -o dedupR1.fastq "
              "-o dedupR2.fastq R1.fastq R2.fastq``.")
     parser.add_argument("-p", "--prefix", default=DEFAULT_PREFIX,
                         help=f"Prefix for the output files. "

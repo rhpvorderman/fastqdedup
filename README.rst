@@ -1,5 +1,95 @@
 fastqdedup
 ==========
 
-Alignment-free FASTQ deduplication.
+Fastqdedup deduplicates FASTQ files with UMI data while taking sequencing
+errors into account.
+
+Fastqdedup reads a FASTQ file sequentially and stores the sequence of each
+FASTQ record. If a sequence is seen before within the specified Hamming
+distance the sequence is discarded.
+
+Fastqdedup can operate on one or multiple FASTQ files. So single reads with
+prepended UMIs, paired reads with prepended UMIs or paired reads with separate
+UMI file are all possible.
+
+
+Usage
+-----
+
+Since all the sequences are stored in memory the memory usage is between
+approximately 45-70% of the size of the original FASTQ file depending on
+read length. The memory usage can be substantially reduced by setting
+``--check-lengths``.
+
+.. code-block::
+
+    usage: fastqdedup [-h] [--check-lengths CHECK_LENGTHS] [-o OUTPUT] [-p PREFIX]
+                      [-d MAX_DISTANCE]
+                      FASTQ [FASTQ ...]
+
+    positional arguments:
+      FASTQ                 Forward FASTQ and optional reverse and UMI FASTQ
+                            files.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --check-lengths CHECK_LENGTHS
+                            Comma-separated string with the maximum string check
+                            length of each file. For example ``fastqdedup --check-
+                            lengths 16,8 R1.fastq R2.fastq`` only checks the first
+                            16 bases of R1 and the first 8 bases of R2 for
+                            duplication.
+      -o OUTPUT, --output OUTPUT
+                            Output file (optional), must be specified multiple
+                            times for multiple input files. For example
+                            ``fastqdedup -o dedupR1.fastq -o dedupR2.fastq
+                            R1.fastq R2.fastq``.
+      -p PREFIX, --prefix PREFIX
+                            Prefix for the output files. Default: 'fastqdedup_R'
+      -d MAX_DISTANCE, --max-distance MAX_DISTANCE
+                            The Hamming distance at which inputs are considered
+                            different. Default: 1.
+
+Methodology
+-----------
+Fastqdedup was heavily inspired by `@jfjlaros's trie implementation
+<https://github.com/jfjlaros/trie>`_. A `trie
+<https://en.wikipedia.org/wiki/Trie>`_ is a way to store sequences in a tree
+format. A disadvantage of this format is that memory usage is quite high since
+every character is stored as a node in the tree, and a node uses a lot more
+space than a single character.
+
+Fastqdedup utilizes the following optimizations.
+
+1. `Radix tree <https://en.wikipedia.org/wiki/Radix_tree>`_ suffixes.
+   While a lot of similarities between FASTQ files are
+   basically guaranteed across the first 8 characters (65536 possible sequences)
+   the amount of possible sequences explodes after that.
+   Therefore a trie of FASTQ sequences contains a lot of branches that consists
+   of nodes that only link one parent to one child for quite a long length.
+   Fastqdedup stores terminating branches as strings rather than nodes, saving
+   a lot of memory.
+2. Variable size nodes. The alphabet is determined while reading in the data.
+   The characters get assigned an index in order of appearance. Nodes are sized
+   such that they can contain the character with the highest index that is in
+   the node.
+3. Fast fail Hamming distances. Since the most likely result is that the
+   sequence is not seen before, the algorithm gives up as quickly as it finds
+   the Hamming distance will be exceeded.
+
+Background
+----------
+Illumina reads have an error rate of approximately 1 in 1000. This means that
+the chance of a sequencing error in a 150bp illumina read is
+``1 - ((1 - (1/1000)) ^ 150) ~= 14%``. This means that most (86%) illumina
+reads are correct and that it is hard to distinguish between reads with one
+SNP and reads with one sequencing error. It is also hard to distinguish between
+sequencing replicates and actual biological replicates.
+
+Unique Molecular Identifiers (UMIs) solve this problem by prepending each read
+with a short sequence of bases. With a UMI length of 8, there are 65536
+(``4^8``) possible UMIs. The chance of two biological replicates having the
+same UMI is 1 in 65536. Therefore two sequences with the same UMI and only one
+base pair different are probably derived from the same biological replicate
+since there is a 14% chance of a sequencing error.
 
