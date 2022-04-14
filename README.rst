@@ -12,6 +12,11 @@ Fastqdedup can operate on one or multiple FASTQ files. So single reads with
 prepended UMIs, paired reads with prepended UMIs or paired reads with separate
 UMI file are all possible.
 
+Installation
+------------
+To install the latest development version:
+
+``pip install git+https://github.com/rhpvorderman/fastqdedup.git``
 
 Usage
 -----
