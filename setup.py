@@ -5,7 +5,7 @@ from setuptools import Extension, find_packages, setup
 LONG_DESCRIPTION = Path("README.rst").read_text()
 
 setup(
-    name="umidedup",
+    name="fastqdedup",
     version="0.1.0-dev",
     description="Alignment-free UMI deduplication",
     author="Leiden University Medical Center",
@@ -17,9 +17,9 @@ setup(
     zip_safe=False,
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    package_data={'umidedup': ['py.typed', '*.pyi']},
+    package_data={'fastqdedup': ['py.typed', '*.pyi']},
     license_file="LICENSE",
-    url="https://github.com/rhpvorderman/umidedup",
+    url="https://github.com/rhpvorderman/fastqdedup",
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3",
@@ -34,8 +34,8 @@ setup(
     python_requires=">=3.6",
     install_requires=["dnaio >=0.8.0"],
     ext_modules=[
-        Extension("umidedup._trie", ["src/umidedup/_triemodule.c"])
+        Extension("fastqdedup._trie", ["src/fastqdedup/_triemodule.c"])
     ],
     entry_points={"console_scripts": [
-        "umidedup = umidedup:main"]}
+        "fastqdedup = fastqdedup:main"]}
 )

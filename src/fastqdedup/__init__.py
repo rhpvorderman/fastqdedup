@@ -9,7 +9,7 @@ import xopen
 
 from ._trie import Trie
 
-DEFAULT_PREFIX="umidedup_R"
+DEFAULT_PREFIX="fastqdedup_R"
 
 
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
@@ -68,13 +68,13 @@ def argument_parser() -> argparse.ArgumentParser:
         "--check-lengths",
         help="Comma-separated string with the maximum string check length of "
              "each file. For example "
-             "``umidedup --check-lengths 16,8 R1.fastq R2.fastq`` only checks "
+             "``fastqdedup --check-lengths 16,8 R1.fastq R2.fastq`` only checks "
              "the first 16 bases of R1 and the first 8 bases of fastq for "
              "duplication.")
     parser.add_argument(
         "-o", "--output", action="append", required=False,
         help="Output file, must be specified multiple times for multiple "
-             "input files. For example ``umidedup -o dedupR1.fastq "
+             "input files. For example ``fastqdedup -o dedupR1.fastq "
              "-o dedupR2.fastq R1.fastq R2.fastq``.")
     parser.add_argument("-p", "--prefix", default=DEFAULT_PREFIX,
                         help=f"Prefix for the output files. "

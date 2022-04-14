@@ -1,4 +1,4 @@
-from umidedup._trie import Trie
+from fastqdedup import Trie
 
 
 def test_trie_one_seq():
