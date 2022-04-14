@@ -23,7 +23,7 @@ LONG_DESCRIPTION = Path("README.rst").read_text()
 setup(
     name="fastqdedup",
     version="0.1.0-dev",
-    description="Aligment-free FASTQ deduplication with UMI support",
+    description="Aligment-free FASTQ deduplication.",
     author="Leiden University Medical Center",
     author_email="r.h.p.vorderman@lumc.nl",
     long_description=LONG_DESCRIPTION,
