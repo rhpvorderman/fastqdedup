@@ -25,7 +25,8 @@ import xopen
 
 from ._trie import Trie
 
-DEFAULT_PREFIX="fastqdedup_R"
+DEFAULT_PREFIX = "fastqdedup_R"
+DEFAULT_MAX_DISTANCE = 1
 
 
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
@@ -49,7 +50,7 @@ def _key_from_records(records: Iterable[dnaio.SequenceRecord],
 def deduplicate(input_files: List[str],
                 output_files: List[str],
                 check_lengths: Optional[List[int]],
-                max_distance: int = 0):
+                max_distance: int = DEFAULT_MAX_DISTANCE):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
                          f"must be equal to the amount of input files "
@@ -95,9 +96,11 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-p", "--prefix", default=DEFAULT_PREFIX,
                         help=f"Prefix for the output files. "
                              f"Default: '{DEFAULT_PREFIX}'")
-    parser.add_argument("-d", "--max-distance", type=int, default=0,
+    parser.add_argument("-d", "--max-distance", type=int,
+                        default=DEFAULT_MAX_DISTANCE,
                         help="The Hamming distance at which inputs are "
-                             "considered different.")
+                             f"considered different. "
+                             f"Default: {DEFAULT_MAX_DISTANCE}.")
     return parser
 
 
