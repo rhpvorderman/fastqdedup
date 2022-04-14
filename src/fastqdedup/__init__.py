@@ -68,8 +68,8 @@ def argument_parser() -> argparse.ArgumentParser:
         "--check-lengths",
         help="Comma-separated string with the maximum string check length of "
              "each file. For example "
-             "``fastqdedup --check-lengths 16,8 R1.fastq R2.fastq`` only checks "
-             "the first 16 bases of R1 and the first 8 bases of fastq for "
+             "``fastqdedup --check-lengths 16,8 R1.fastq R2.fastq`` only "
+             "checks the first 16 bases of R1 and the first 8 bases of R2 for "
              "duplication.")
     parser.add_argument(
         "-o", "--output", action="append", required=False,
