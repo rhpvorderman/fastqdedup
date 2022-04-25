@@ -169,7 +169,8 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         this_node->children[node_index] = next_node;
         return 0;
     }
-    return TrieNode_AddSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, alphabet_size, charmap);
+    return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
+                                 sequence + 1, sequence_size - 1, alphabet_size, charmap);
 }
 
 static int 
@@ -252,7 +253,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     Trie * new_trie = PyObject_New(Trie, type);
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
-    new_trie->root = TrieNode_NewLeaf("", 0);
+    new_trie->root = TrieNode_NewLeaf(NULL, 0);
     return (PyObject *)new_trie;
 }
 
