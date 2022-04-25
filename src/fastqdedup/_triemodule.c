@@ -35,6 +35,7 @@ typedef struct {
 #define _TrieNode_SET_SUFFIX_SIZE(n, s) (n->alphabet_size = TRIE_NODE_TERMINAL_FLAG | s)
 #define TrieNode_GET_SUFFIX(n) (assert (TrieNode_IS_TERMINAL(n)), \
     (uint8_t *)n->children)
+#define TrieNode_GET_CHILD(n, i) ((TrieNode *)(n->children[i]))
 
 static inline TrieNode * 
 TrieNode_GetChild(TrieNode * parent, size_t index) {
@@ -47,23 +48,6 @@ TrieNode_GetChild(TrieNode * parent, size_t index) {
     return (TrieNode *)(parent->children[index]);
 }
 
-#define TrieNode_GET_CHILD(n, i) ((TrieNode *)(n->children[i]))
-static TrieNode *
-TrieNode_New(uint32_t alphabet_size) {
-    if (alphabet_size > TRIE_NODE_ALPHABET_MAX_SIZE) {
-        PyErr_SetString(PyExc_SystemError, "TrieNode initialized with excessive alphabet size");
-        return NULL;
-    }
-    size_t trie_node_size = sizeof(TrieNode) + sizeof(TrieNode *) * alphabet_size;
-    TrieNode * new = PyMem_Malloc(trie_node_size);
-    if (new == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-    memset(new, 0, trie_node_size);
-    new->alphabet_size = alphabet_size;
-    return new; 
-}
 
 static TrieNode * 
 TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
@@ -268,7 +252,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     Trie * new_trie = PyObject_New(Trie, type);
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
-    new_trie->root = TrieNode_New(0);
+    new_trie->root = TrieNode_NewLeaf("", 0);
     return (PyObject *)new_trie;
 }
 
