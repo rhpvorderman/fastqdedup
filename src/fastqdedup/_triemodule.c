@@ -274,7 +274,9 @@ TrieNode_FindNearest(
             if (child == NULL) {
                 continue;
             }
-            buffer[0] = alphabet[i];
+            if (buffer) {
+                buffer[0] = alphabet[i];
+            }
             int ret = TrieNode_FindNearest(
                 child, sequence + 1, sequence_length -1, max_distance, charmap, 
                 new_buffer, alphabet);
@@ -285,7 +287,9 @@ TrieNode_FindNearest(
         return 0;
     }
     // Found a match, continue the computation with the child node.
-    buffer[0] = character;
+    if (buffer) {
+        buffer[0] = character;
+    }
     return TrieNode_FindNearest(
         child, sequence + 1, sequence_length -1, max_distance, charmap, 
         new_buffer, alphabet);
