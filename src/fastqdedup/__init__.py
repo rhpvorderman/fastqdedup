@@ -68,7 +68,7 @@ def deduplicate(input_files: List[str],
     trie = Trie()
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
-        if not trie.sequence_present_hamming(key, max_distance):
+        if not trie.contains_sequence(key, max_distance):
             for record, output in zip(records, output_files):
                 output.write(record.fastq_bytes())
         # Always add sequence to the trie. This way clusters use only the first

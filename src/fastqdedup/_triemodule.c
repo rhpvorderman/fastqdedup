@@ -298,29 +298,32 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
     return NULL;
 }
 
-PyDoc_STRVAR(Trie_check_presence_hamming__doc__,
-"check_presence_hamming($self, sequence, /, max_distance=0)\n"
+PyDoc_STRVAR(Trie_contains_sequence__doc__,
+"contains_sequence($self, sequence, /, max_hamming_distance=0)\n"
 "--\n"
 "\n"
-"Check if a sequence is present at a maximal Hamming distance\n"
+"Check if a sequence is present in the trie.\n"
+"\n"
+"Optionally check if a similar sequence is present at the specified\n"
+"maximum hamming distance.\n"
 "Sequences with unequal size are considered unequal.\n"
 "\n"
 "  sequence\n"
 "    An ASCII string.\n"
-"  max_distance\n"
+"  max_hamming_distance\n"
 "    The maximal Hamming distance\n"
 "\n");
 
-#define TRIE_SEQUENCE_PRESENT_HAMMING_METHODDEF    \
-    {"sequence_present_hamming", (PyCFunction)(void(*)(void))Trie_check_presence_hamming, \
-    METH_VARARGS | METH_KEYWORDS, Trie_check_presence_hamming__doc__}
+#define TRIE_CONTAINS_SEQUENCE_METHODDEF    \
+    {"contains_sequence", (PyCFunction)(void(*)(void))Trie_contains_sequence, \
+    METH_VARARGS | METH_KEYWORDS, Trie_contains_sequence__doc__}
 
 static PyObject *
-Trie_check_presence_hamming(Trie *self, PyObject *args, PyObject* kwargs) {
+Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     PyObject * sequence = NULL;
     int max_distance = 0;
-    char * keywords[] = {"", "max_distance", NULL};
-    const char *format = "O|i:Trie.check_presence_hamming";
+    char * keywords[] = {"", "max_hamming_distance", NULL};
+    const char *format = "O|i:Trie.contains_sequence";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords,
             &sequence, &max_distance)) {
@@ -350,7 +353,7 @@ Trie_check_presence_hamming(Trie *self, PyObject *args, PyObject* kwargs) {
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
-    TRIE_SEQUENCE_PRESENT_HAMMING_METHODDEF,
+    TRIE_CONTAINS_SEQUENCE_METHODDEF,
     {NULL}
 };
 
