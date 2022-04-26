@@ -547,7 +547,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     uint32_t template_size = sequence_size;
     uint32_t template_count = TrieNode_DeleteSequence(&(self->root), 
                               template_sequence, template_size, self->charmap);
-    if (template_count == 0) {
+    if (template_count == -1) {
         PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
         PyMem_Free(buffer);
         Py_DECREF(first_sequence_obj);
@@ -558,9 +558,10 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyTuple_SET_ITEM(tup, 0, PyLong_FromUnsignedLong(template_count));
     PyTuple_SET_ITEM(tup, 1, first_sequence_obj);
     PyList_SET_ITEM(cluster, 0, tup);
-
-    
-    return cluster;
+    if (max_distance == 0) {
+        return cluster;
+    }
+    Py_RETURN_NOTIMPLEMENTED;
 }
 
 
