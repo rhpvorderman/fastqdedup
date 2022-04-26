@@ -287,6 +287,41 @@ TrieNode_FindNearest(
         child, sequence + 1, sequence_length -1, max_distance, charmap, new_buffer);
 }
 
+static ssize_t;
+TrieNode_GetSequence(
+    TrieNode *trie_node, 
+    const uint8_t *indextocharmap, 
+    uint8_t *buffer, 
+    uint32_t buffer_size) 
+{
+    if (buffer_size < 1) {
+        return -1;
+    }
+    if (TrieNode_IS_TERMINAL(trie_node)) {
+        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(trie_node);
+        if (suffix_size > buffer_size) {
+            return -1;
+        }
+        uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
+        memcpy(buffer, suffix, suffix_size);
+        return suffix_size;
+    }
+    uint32_t alphabet_size = trie_node->alphabet_size;
+    uint32_t i;
+    TrieNode * child;
+    for (i=0; i<alphabet_size; i+=1) {
+        child = TrieNode_GET_CHILD(trie_node, i);
+        if (child == NULL) {
+            continue;
+        }
+        buffer[0] = indextocharmap[i];
+        return 1 + Trie_GetSequence(child, indextocharmap, buffer + 1, buffer_size - 1);
+    }
+    // No children found.
+    return 0;
+}
+
+
 typedef struct {
     PyObject_HEAD
     uint8_t charmap[256];
@@ -449,7 +484,10 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         return NULL;
     }
     
-    PyObject * cluster = PyList_New(0);
+    PyObject *cluster = PyList_New(0);
+    uint8_t *buffer = PyMem_Malloc(self->max_sequence_size);
+
+
     
 }
 
