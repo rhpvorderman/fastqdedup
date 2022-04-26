@@ -224,11 +224,12 @@ TrieNode_DeleteSequence(
 static uint32_t
 TrieNode_FindNearest(
     TrieNode * trie_node, 
-    uint8_t * sequence,
+    const uint8_t * sequence,
     uint32_t sequence_length,
     int max_distance, 
     const uint8_t * charmap, 
-    uint8_t *buffer) 
+    uint8_t *buffer,
+    const uint8_t * alphabet) 
 {
     if (max_distance < 0) {
         return 0;
@@ -262,7 +263,6 @@ TrieNode_FindNearest(
     uint8_t node_index = charmap[character];
     uint8_t *new_buffer = NULL; 
     if (buffer) {
-        buffer[0] = character;
         new_buffer = buffer + 1;
     }
     TrieNode * child = TrieNode_GetChild(trie_node, node_index);
@@ -274,8 +274,10 @@ TrieNode_FindNearest(
             if (child == NULL) {
                 continue;
             }
+            buffer[0] = alphabet[i];
             int ret = TrieNode_FindNearest(
-                child, sequence + 1, sequence_length -1, max_distance, charmap, new_buffer);
+                child, sequence + 1, sequence_length -1, max_distance, charmap, 
+                new_buffer, alphabet);
             if (ret) {
                 return ret; 
             }
@@ -283,14 +285,29 @@ TrieNode_FindNearest(
         return 0;
     }
     // Found a match, continue the computation with the child node.
+    buffer[0] = character;
     return TrieNode_FindNearest(
-        child, sequence + 1, sequence_length -1, max_distance, charmap, new_buffer);
+        child, sequence + 1, sequence_length -1, max_distance, charmap, 
+        new_buffer, alphabet);
 }
 
-static ssize_t;
+/**
+ * @brief Get a sequence from the trie node. 
+ * 
+ * This function takes the first sequence based on the order of the 
+ * provided alphabet.
+ * 
+ * @param trie_node 
+ * @param alphabet 
+ * @param buffer A buffer where 
+ * @param buffer_size 
+ * @return ssize_t The size of the sequence. 0 if none found. -1 if buffer was
+ *                 too small.
+ */
+static ssize_t
 TrieNode_GetSequence(
     TrieNode *trie_node, 
-    const uint8_t *indextocharmap, 
+    const uint8_t *alphabet, 
     uint8_t *buffer, 
     uint32_t buffer_size) 
 {
@@ -314,8 +331,8 @@ TrieNode_GetSequence(
         if (child == NULL) {
             continue;
         }
-        buffer[0] = indextocharmap[i];
-        return 1 + Trie_GetSequence(child, indextocharmap, buffer + 1, buffer_size - 1);
+        buffer[0] = alphabet[i];
+        return 1 + TrieNode_GetSequence(child, alphabet, buffer + 1, buffer_size - 1);
     }
     // No children found.
     return 0;
@@ -447,7 +464,8 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    int ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, self->charmap, NULL);
+    int ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
+              self->charmap, NULL, NULL);
     return PyBool_FromLong(ret);
 }
 
