@@ -498,7 +498,7 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 
 #define TRIE_POP_CLUSTER_METHODDEF    \
     {"pop_cluster", (PyCFunction)(void(*)(void))Trie_pop_cluster, \
-    METH_O, Trie_contains_sequence__doc__}
+    METH_O, Trie_pop_cluster__doc__}
 
 static PyObject *
 Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
@@ -515,22 +515,59 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         return NULL;
     }
     
-    PyObject *cluster = PyList_New(0);
-
     uint32_t buffer_size = self->max_sequence_size;
     uint8_t *buffer = PyMem_Malloc(buffer_size);
+    if (buffer == NULL) {
+        return PyErr_NoMemory();
+    }
     ssize_t sequence_size = TrieNode_GetSequence(self->root, self->alphabet, 
                                                 buffer, buffer_size);
-
-
+    if (sequence_size == 0) {
+        PyErr_SetString(PyExc_LookupError, "No sequences left in Trie.");
+        PyMem_Free(buffer);
+        return NULL;
+    }
+    if (sequence_size == - 1){
+        PyErr_SetString(PyExc_RuntimeError, "Incorrect buffer size used.");
+        PyMem_Free(buffer);
+        return NULL;
+    }
+    PyObject * first_sequence_obj = PyUnicode_New(sequence_size, 127);
+    if (first_sequence_obj == NULL) {
+        PyMem_Free(buffer);
+        return PyErr_NoMemory();
+    }
+    memcpy(PyUnicode_DATA(first_sequence_obj), buffer, sequence_size);
+    buffer = PyMem_Realloc(buffer, sequence_size);
+    if (buffer == NULL){
+        Py_DECREF(first_sequence_obj);
+        return PyErr_NoMemory();
+    }
+    uint8_t * template_sequence = PyUnicode_DATA(first_sequence_obj);
+    uint32_t template_size = sequence_size;
+    uint32_t template_count = TrieNode_DeleteSequence(&(self->root), 
+                              template_sequence, template_size, self->charmap);
+    if (template_count == 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
+        PyMem_Free(buffer);
+        Py_DECREF(first_sequence_obj);
+        return NULL;
+    }
+    PyObject * cluster = PyList_New(1);
+    PyObject * tup = PyTuple_New(2);
+    PyTuple_SET_ITEM(tup, 0, PyLong_FromUnsignedLong(template_count));
+    PyTuple_SET_ITEM(tup, 1, first_sequence_obj);
+    PyList_SET_ITEM(cluster, 0, tup);
 
     
+    return cluster;
 }
 
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
     TRIE_CONTAINS_SEQUENCE_METHODDEF,
+    TRIE_POP_CLUSTER_METHODDEF,
     {NULL}
 };
 
