@@ -351,6 +351,58 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     return PyBool_FromLong(ret);
 }
 
+PyDoc_STRVAR(Trie_pop_cluster__doc__,
+"pop_cluster($self, max_hamming_distance, /)\n"
+"--\n"
+"\n"
+"Find a cluster of sequences within the same hamming distance and remove them from the trie.\n"
+"\n"
+"Optionally check if a similar sequence is present at the specified\n"
+"maximum hamming distance.\n"
+"Sequences with unequal size are considered unequal.\n"
+"\n"
+"  max_hamming_distance\n"
+"    The maximal Hamming distance\n"
+"\n");
+
+#define TRIE_POP_CLUSTER_METHODDEF    \
+    {"pop_cluster", (PyCFunction)(void(*)(void))Trie_pop_cluster, \
+    METH_O, Trie_contains_sequence__doc__}
+
+static PyObject *
+Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
+    PyObject * sequence = NULL; 
+    int max_distance = 0;
+    char * keywords[] = {"", NULL};
+    const char *format = "i|:Trie.contains_sequence";
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, format, keywords,
+            &sequence, &max_distance)) {
+        return NULL;
+    }
+    if (!PyUnicode_CheckExact(sequence)) {
+        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s", 
+            Py_TYPE(sequence)->tp_name);
+        return NULL;
+    }
+    if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
+        PyErr_SetString(PyExc_ValueError, "sequence must contain only ASCII characters");
+        return NULL;
+    }
+    uint8_t * seq = (uint8_t *)PyUnicode_DATA(sequence);
+    Py_ssize_t seq_size = PyUnicode_GET_LENGTH(sequence);
+    if (seq_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
+        PyErr_Format(
+            PyExc_ValueError, 
+            "Sequences larger than %d can not be stored in the Trie",
+            TRIE_NODE_SUFFIX_MAX_SIZE);
+        return NULL;
+    }
+    int ret = TrieNode_SequencePresentHamming(self->root, seq, seq_size, max_distance, self->charmap);
+    return PyBool_FromLong(ret);
+}
+
+
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
     TRIE_CONTAINS_SEQUENCE_METHODDEF,
