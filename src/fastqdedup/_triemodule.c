@@ -428,30 +428,19 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 
 static PyObject *
 Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
-    PyObject * sequence = NULL;
-    int max_distance = 0;
-    char * keywords[] = {"", NULL};
-    const char *format = "i|:Trie.contains_sequence";
-    if (!PyUnicode_CheckExact(sequence)) {
-        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s", 
-            Py_TYPE(sequence)->tp_name);
+    if (!PyLong_CheckExact(max_hamming_distance)) {
+        PyErr_Format(PyExc_TypeError, 
+                     "max_hamming_distance expected an int not %s", 
+                     Py_TYPE(max_hamming_distance)->tp_name);
+        return 0;
+    }
+    int max_distance = PyLong_AsLong(max_hamming_distance);
+    if (max_distance < 1) {
+        PyErr_SetString(PyExc_ValueError, 
+                        "max_hamming distance should be larger than 1");
         return NULL;
     }
-    if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
-        PyErr_SetString(PyExc_ValueError, "sequence must contain only ASCII characters");
-        return NULL;
-    }
-    uint8_t * seq = (uint8_t *)PyUnicode_DATA(sequence);
-    Py_ssize_t seq_size = PyUnicode_GET_LENGTH(sequence);
-    if (seq_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
-        PyErr_Format(
-            PyExc_ValueError, 
-            "Sequences larger than %d can not be stored in the Trie",
-            TRIE_NODE_SUFFIX_MAX_SIZE);
-        return NULL;
-    }
-    int ret = TrieNode_SequencePresentHamming(self->root, seq, seq_size, max_distance, self->charmap);
-    return PyBool_FromLong(ret);
+    Py_RETURN_NOTIMPLEMENTED;
 }
 
 
