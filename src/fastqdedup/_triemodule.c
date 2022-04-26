@@ -91,7 +91,7 @@ TrieNode_Destroy(TrieNode * trie_node) {
 }
 
 static TrieNode *
-TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size) {
+TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size, uint32_t sequence_count) {
     if (suffix_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
         PyErr_SetString(PyExc_SystemError, "TrieNode initialized with excessive suffix size");
         return NULL;
@@ -103,7 +103,7 @@ TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size) {
         return NULL;
     }
     _TrieNode_SET_SUFFIX_SIZE(new, suffix_size);
-    new->count = 1;
+    new->count = sequence_count;
     memcpy(TrieNode_GET_SUFFIX(new), suffix, suffix_size);
     return new;
 }
@@ -114,13 +114,14 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                      uint32_t sequence_size, 
                      uint8_t *alphabet_size, 
                      uint8_t * charmap,
-                     uint8_t * alphabet) {
+                     uint8_t * alphabet,
+                     uint32_t sequence_count) {
     TrieNode * this_node = trie_node[0];
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
         if (sequence_size == suffix_size) {
             if (memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
-                this_node->count += 1;
+                this_node->count += sequence_count;
                 return 0;
             }
         }
@@ -132,10 +133,10 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         }
         memcpy(tmp, suffix, suffix_size);
         this_node->alphabet_size = 0;
-        // TODO: Add code when leaf node has a count greater than 1;
+        uint32_t count = this_node->count;
         this_node->count = 0;
         int ret = TrieNode_AddSequence(
-            trie_node, tmp, suffix_size, alphabet_size, charmap, alphabet);
+            trie_node, tmp, suffix_size, alphabet_size, charmap, alphabet, count);
         this_node = trie_node[0];
         PyMem_Free(tmp);
         if (ret != 0){
@@ -143,7 +144,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         }
     }
     if (sequence_size == 0) {
-        this_node->count += 1;
+        this_node->count += sequence_count;
         return 0;
     }
 
@@ -165,7 +166,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
     }
     TrieNode * next_node = TrieNode_GetChild(this_node, node_index);
     if (next_node == NULL) {
-        next_node = TrieNode_NewLeaf(sequence + 1, sequence_size -1);
+        next_node = TrieNode_NewLeaf(sequence + 1, sequence_size -1, sequence_count);
         if (next_node == NULL) {
             return -1;
         }
@@ -177,7 +178,8 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                                  sequence_size - 1, 
                                  alphabet_size, 
                                  charmap,
-                                 alphabet);
+                                 alphabet,
+                                 sequence_count);
 }
 
 static ssize_t
@@ -382,7 +384,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
     memset(new_trie->alphabet, 0, 256);
-    new_trie->root = TrieNode_NewLeaf(NULL, 0);
+    new_trie->root = TrieNode_NewLeaf(NULL, 0, 0);
     new_trie->number_of_sequences = 0;
     new_trie->max_sequence_size = 0; 
     return (PyObject *)new_trie;
@@ -423,7 +425,7 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap, self->alphabet) == 0) {
+    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap, self->alphabet, 1) == 0) {
         self->number_of_sequences += 1;
         if (seq_size > self->max_sequence_size) {
             self->max_sequence_size = seq_size;
