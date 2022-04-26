@@ -291,6 +291,8 @@ typedef struct {
     PyObject_HEAD
     uint8_t charmap[256];
     uint8_t alphabet_size;
+    Py_ssize_t number_of_sequences;
+    uint32_t max_sequence_size;
     TrieNode * root;
 } Trie;
 
@@ -311,6 +313,8 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
     new_trie->root = TrieNode_NewLeaf(NULL, 0);
+    new_trie->number_of_sequences = 0;
+    new_trie->max_sequence_size = 0; 
     return (PyObject *)new_trie;
 }
 
@@ -350,6 +354,10 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
         return NULL;
     }
     if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap) == 0) {
+        self->number_of_sequences += 1;
+        if (seq_size > self->max_sequence_size) {
+            self->max_sequence_size = seq_size;
+        }
         Py_RETURN_NONE;
     }
     return NULL;
@@ -435,12 +443,14 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         return 0;
     }
     int max_distance = PyLong_AsLong(max_hamming_distance);
-    if (max_distance < 1) {
+    if (max_distance < 0) {
         PyErr_SetString(PyExc_ValueError, 
-                        "max_hamming distance should be larger than 1");
+                        "max_hamming distance should be larger than 0");
         return NULL;
     }
-    Py_RETURN_NOTIMPLEMENTED;
+    
+    PyObject * cluster = PyList_New(0);
+    
 }
 
 
