@@ -113,7 +113,8 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                      uint8_t * sequence, 
                      uint32_t sequence_size, 
                      uint8_t *alphabet_size, 
-                     uint8_t * charmap) {
+                     uint8_t * charmap,
+                     uint8_t * alphabet) {
     TrieNode * this_node = trie_node[0];
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
@@ -133,7 +134,8 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         this_node->alphabet_size = 0;
         // TODO: Add code when leaf node has a count greater than 1;
         this_node->count = 0;
-        int ret = TrieNode_AddSequence(trie_node, tmp, suffix_size, alphabet_size, charmap);
+        int ret = TrieNode_AddSequence(
+            trie_node, tmp, suffix_size, alphabet_size, charmap, alphabet);
         this_node = trie_node[0];
         PyMem_Free(tmp);
         if (ret != 0){
@@ -150,6 +152,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
     if (node_index == 255) {
         node_index = *alphabet_size;
         charmap[character] = node_index;
+        alphabet[node_index] = character;
         *alphabet_size = node_index + 1;
     }
     if (node_index >= this_node->alphabet_size) {
@@ -170,7 +173,11 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         return 0;
     }
     return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
-                                 sequence + 1, sequence_size - 1, alphabet_size, charmap);
+                                 sequence + 1, 
+                                 sequence_size - 1, 
+                                 alphabet_size, 
+                                 charmap,
+                                 alphabet);
 }
 
 static ssize_t
@@ -346,6 +353,7 @@ TrieNode_GetSequence(
 typedef struct {
     PyObject_HEAD
     uint8_t charmap[256];
+    uint8_t alphabet[256];
     uint8_t alphabet_size;
     Py_ssize_t number_of_sequences;
     uint32_t max_sequence_size;
@@ -368,6 +376,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     Trie * new_trie = PyObject_New(Trie, type);
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
+    memset(new_trie->alphabet, 0, 256);
     new_trie->root = TrieNode_NewLeaf(NULL, 0);
     new_trie->number_of_sequences = 0;
     new_trie->max_sequence_size = 0; 
@@ -409,7 +418,7 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap) == 0) {
+    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap, self->alphabet) == 0) {
         self->number_of_sequences += 1;
         if (seq_size > self->max_sequence_size) {
             self->max_sequence_size = seq_size;
@@ -507,7 +516,12 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     
     PyObject *cluster = PyList_New(0);
-    uint8_t *buffer = PyMem_Malloc(self->max_sequence_size);
+
+    uint32_t buffer_size = self->max_sequence_size;
+    uint8_t *buffer = PyMem_Malloc(buffer_size);
+    ssize_t sequence_size = TrieNode_GetSequence(self->root, self->alphabet, 
+                                                buffer, buffer_size);
+
 
 
     
