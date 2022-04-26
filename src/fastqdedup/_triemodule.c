@@ -322,9 +322,6 @@ TrieNode_GetSequence(
     uint8_t *buffer, 
     uint32_t buffer_size) 
 {
-    if (buffer_size < 1) {
-        return -1;
-    }
     if (TrieNode_IS_TERMINAL(trie_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(trie_node);
         if (suffix_size > buffer_size) {
@@ -333,6 +330,10 @@ TrieNode_GetSequence(
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
         memcpy(buffer, suffix, suffix_size);
         return suffix_size;
+    }
+    // Node has children but we cannot add these to the buffer anymore.
+    if (buffer_size < 1) {
+        return -1;
     }
     uint32_t alphabet_size = trie_node->alphabet_size;
     uint32_t i;
@@ -343,7 +344,11 @@ TrieNode_GetSequence(
             continue;
         }
         buffer[0] = alphabet[i];
-        return 1 + TrieNode_GetSequence(child, alphabet, buffer + 1, buffer_size - 1);
+        ssize_t ret = TrieNode_GetSequence(child, alphabet, buffer + 1, buffer_size - 1);
+        if (ret == -1) {
+            return ret;
+        } 
+        return 1 + ret;
     }
     // No children found.
     return 0;
@@ -545,7 +550,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     uint8_t * template_sequence = PyUnicode_DATA(first_sequence_obj);
     uint32_t template_size = sequence_size;
-    uint32_t template_count = TrieNode_DeleteSequence(&(self->root), 
+    ssize_t template_count = TrieNode_DeleteSequence(&(self->root), 
                               template_sequence, template_size, self->charmap);
     if (template_count == -1) {
         PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
