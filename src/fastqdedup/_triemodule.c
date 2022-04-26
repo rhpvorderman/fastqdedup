@@ -115,10 +115,6 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                      uint8_t *alphabet_size, 
                      uint8_t * charmap) {
     TrieNode * this_node = trie_node[0];
-    if (sequence_size == 0) {
-        this_node->count += 1;
-        return 0;
-    }
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
         if (sequence_size == suffix_size) {
@@ -143,6 +139,10 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         if (ret != 0){
             return ret;
         }
+    }
+    if (sequence_size == 0) {
+        this_node->count += 1;
+        return 0;
     }
 
     uint8_t character = sequence[0];
@@ -173,7 +173,57 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                                  sequence + 1, sequence_size - 1, alphabet_size, charmap);
 }
 
-static int 
+static ssize_t
+TrieNode_DeleteSequence(
+    TrieNode ** trie_node,
+    uint8_t * sequence,
+    uint32_t sequence_size,
+    const uint8_t * charmap)
+{
+    TrieNode * this_node = trie_node[0];
+    uint32_t count;
+    if (TrieNode_IS_TERMINAL(this_node)) {
+        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
+        if (!(sequence_size == suffix_size)) {
+            return -1;
+        }
+        if (!memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
+            return -1;
+        }
+        count = this_node->count;
+        PyMem_Free(this_node);
+        *trie_node = NULL;
+        return count;
+    }
+
+    if (sequence_size == 0) {
+        uint32_t count = this_node->count;
+        if (count == 0) {
+            return -1;
+        }
+        this_node->count = 0;
+        return count;
+    }
+
+    uint8_t character = sequence[0];
+    uint8_t node_index = charmap[character];
+    if (node_index == 255) {
+        return -1;
+    }
+
+    if (node_index >= this_node->alphabet_size) {
+       return -1;
+    }
+    TrieNode * next_node = TrieNode_GetChild(this_node, node_index);
+    if (next_node == NULL) {
+        return -1;
+    }
+    return TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, charmap);
+}
+
+
+
+static int
 TrieNode_SequencePresentHamming(
     TrieNode * trie_node, 
     uint8_t * sequence, 
@@ -183,9 +233,6 @@ TrieNode_SequencePresentHamming(
 {
     if (max_distance < 0) {
         return 0;
-    }
-    if (sequence_length == 0) {
-        return (trie_node->count > 0);
     }
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
@@ -204,6 +251,9 @@ TrieNode_SequencePresentHamming(
             }
         }
         return 1;
+    }
+    if (sequence_length == 0) {
+        return (trie_node->count > 0);
     }
 
     uint8_t character = sequence[0];
@@ -330,7 +380,7 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
         return NULL;
     }
     if (!PyUnicode_CheckExact(sequence)) {
-        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s", 
+        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s",
             Py_TYPE(sequence)->tp_name);
         return NULL;
     }
@@ -342,7 +392,7 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     Py_ssize_t seq_size = PyUnicode_GET_LENGTH(sequence);
     if (seq_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
         PyErr_Format(
-            PyExc_ValueError, 
+            PyExc_ValueError,
             "Sequences larger than %d can not be stored in the Trie",
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
@@ -371,7 +421,7 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 
 static PyObject *
 Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
-    PyObject * sequence = NULL; 
+    PyObject * sequence = NULL;
     int max_distance = 0;
     char * keywords[] = {"", NULL};
     const char *format = "i|:Trie.contains_sequence";
