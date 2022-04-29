@@ -43,6 +43,10 @@ typedef struct {
     (uint8_t *)n->children)
 #define TrieNode_GET_CHILD(n, i) ((TrieNode *)(n->children[i]))
 
+/**
+ * @brief Get the child of parent for a given index. Always return NULL when
+ *        child is node present or the node is terminal.
+ */
 static inline TrieNode * 
 TrieNode_GetChild(TrieNode * parent, size_t index) {
     if TrieNode_IS_TERMINAL(parent){
@@ -55,6 +59,10 @@ TrieNode_GetChild(TrieNode * parent, size_t index) {
 }
 
 
+/**
+ * @brief Resize a trie_node so it can contain a given alphabet size. Returns
+ *        a new pointer.
+ */
 static TrieNode * 
 TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     if (alphabet_size > TRIE_NODE_ALPHABET_MAX_SIZE) {
@@ -79,6 +87,9 @@ TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     return new_node;
 }
 
+/**
+ * @brief Free a TrieNode and all its children.
+ */
 static void
 TrieNode_Destroy(TrieNode * trie_node) {
     if (trie_node == NULL) {
@@ -96,6 +107,14 @@ TrieNode_Destroy(TrieNode * trie_node) {
     return;
 }
 
+/**
+ * @brief Create a new TrieNode. The TrieNode is a leaf node (terminal node).
+ * 
+ * @param suffix The sequence to store in the node, may be NULL.
+ * @param suffix_size The suffix size, in case of a NULL suffix, this should be 0.
+ * @param sequence_count The amount of sequences stored in the node.
+ * @return TrieNode* Pointer to the new leaf node.
+ */
 static TrieNode *
 TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size, uint32_t sequence_count) {
     if (suffix_size > TRIE_NODE_SUFFIX_MAX_SIZE) {
@@ -114,15 +133,27 @@ TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size, uint32_t sequence_count
     return new;
 }
 
+/**
+ * @brief Add a sequence to the TrieNode at the trie_node_address. May resize
+ *        the TrieNode accordingly.
+ * 
+ * @param trie_node_address Pointer to a TrieNode pointer. 
+ * @param sequence The sequence to add.
+ * @param sequence_size The size of the sequence.
+ * @param sequence_count How many sequence should be added.
+ * @param alphabet The alphabet. The alphabet may be updated if new characters
+ *                 are in the sequence.
+ * @return 0 on success, -1 on failure.
+ */
 static int
-TrieNode_AddSequence(TrieNode **trie_node,
+TrieNode_AddSequence(TrieNode **trie_node_address,
                      uint8_t *sequence, 
                      uint32_t sequence_size, 
                      uint32_t sequence_count,
                      Alphabet *alphabet) {
-    TrieNode * this_node = trie_node[0];
+    TrieNode * this_node = trie_node_address[0];
     if (this_node == NULL) {
-        trie_node[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
+        trie_node_address[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
         return 0;
     }
     if (TrieNode_IS_TERMINAL(this_node)) {
@@ -144,8 +175,8 @@ TrieNode_AddSequence(TrieNode **trie_node,
         uint32_t count = this_node->count;
         this_node->count = 0;
         int ret = TrieNode_AddSequence(
-            trie_node, tmp, suffix_size, count, alphabet);
-        this_node = trie_node[0];
+            trie_node_address, tmp, suffix_size, count, alphabet);
+        this_node = trie_node_address[0];
         PyMem_Free(tmp);
         if (ret != 0){
             return ret;
@@ -170,7 +201,7 @@ TrieNode_AddSequence(TrieNode **trie_node,
             return -1;
         }
         this_node = new_node;
-        trie_node[0] = this_node;
+        trie_node_address[0] = this_node;
     }
     return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
                                  sequence + 1, 
@@ -179,14 +210,25 @@ TrieNode_AddSequence(TrieNode **trie_node,
                                  alphabet);
 }
 
+/**
+ * @brief Delete the sequence from the TrieNode at this address. If this leaves
+ *        the TrieNode with only empty (NULL) children, the address is set
+ *        to NULL and the trie node is freed.
+ * 
+ * @param trie_node_address a pointer to a TrieNode pointer.
+ * @param sequence the sequence to remove
+ * @param sequence_size the size of the sequence
+ * @param alphabet the alphabet.
+ * @return ssize_t the number of removed sequences or -1 for error.
+ */
 static ssize_t
 TrieNode_DeleteSequence(
-    TrieNode **trie_node,
+    TrieNode **trie_node_address,
     uint8_t *sequence,
     uint32_t sequence_size,
     Alphabet *alphabet)
 {
-    TrieNode * this_node = trie_node[0];
+    TrieNode * this_node = trie_node_address[0];
     uint32_t count;
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
@@ -198,7 +240,7 @@ TrieNode_DeleteSequence(
         }
         count = this_node->count;
         PyMem_Free(this_node);
-        *trie_node = NULL;
+        *trie_node_address = NULL;
         return count;
     }
 
@@ -233,16 +275,30 @@ TrieNode_DeleteSequence(
         }
         // All children are null
         if (this_node->count) {
-            trie_node[0] = TrieNode_NewLeaf(NULL, 0, this_node->count);
+            trie_node_address[0] = TrieNode_NewLeaf(NULL, 0, this_node->count);
         }
         else {
-            trie_node[0] = NULL;
+            trie_node_address[0] = NULL;
         }
         PyMem_Free(this_node);
     }
     return ret;
 }
 
+/**
+ * @brief Find the nearest sequence in the trie at the specified hamming 
+ *        distance. Optionally store this sequence in a buffer.
+ * 
+ * @param trie_node the trie to search.
+ * @param sequence the sequence
+ * @param sequence_length the length of the sequence
+ * @param max_distance the maximum hamming distance. Use 0 for exact match.
+ * @param alphabet the used alphabet in the trie.
+ * @param buffer a buffer to store the found sequence in. Can be set to NULL 
+ *               for no storage. The buffer should have a memory size of 
+ *               sequence_length.
+ * @return ssize_t the count of the found sequences.
+ */
 static ssize_t
 TrieNode_FindNearest(
     TrieNode * trie_node, 
@@ -322,10 +378,10 @@ TrieNode_FindNearest(
  * This function takes the first sequence based on the order of the 
  * provided alphabet.
  * 
- * @param trie_node 
- * @param alphabet 
- * @param buffer A buffer where 
- * @param buffer_size 
+ * @param trie_node The trie to traverse.
+ * @param alphabet The used alphabet.
+ * @param buffer A buffer where the sequence is stored.
+ * @param buffer_size The size of the buffer.
  * @return ssize_t The size of the sequence. 0 if none found. -1 if buffer was
  *                 too small.
  */
@@ -507,10 +563,10 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 "pop_cluster($self, max_hamming_distance, /)\n"
 "--\n"
 "\n"
-"Find a cluster of sequences within the same hamming distance and remove them from the trie.\n"
+"Find a cluster of sequences within the same hamming distance and remove them\n"
+"from the trie.\n"
+"A list of tuples of (count, sequence) is returned.\n"
 "\n"
-"Optionally check if a similar sequence is present at the specified\n"
-"maximum hamming distance.\n"
 "Sequences with unequal size are considered unequal.\n"
 "\n"
 "  max_hamming_distance\n"
