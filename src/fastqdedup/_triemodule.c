@@ -19,12 +19,51 @@
 
 #include <stdint.h>
 
+/**
+ * @brief Simple struct to store an alphabet and conversion operations. 
+ * 
+ * from_index stores the actual alphabet and should be initialized with zeroes.
+ * to_index stores the indexes at each character's position, with 255 for 
+ * unknown characters. It should be initialized with 255s (0xff) 
+ * size stores the alphabet size.
+ * */
 typedef struct {
     uint8_t to_index[256];
     uint8_t from_index[256];
     uint8_t size;
 } Alphabet;
 
+
+/**
+ * @brief A node in a trie.
+ * 
+ * Each node stores its children in children. These are of type 'TrieNode *'. 
+ * 
+ * The alphabet_size signifies how many children are stored. This does not have
+ * to reflect the alphabet size in the application. Say the alphabet is ACGT 
+ * (DNA letters) with indexes 0, 1, 2 and 3. If we have a node that has only 
+ * one child 'C', we only need to have children[1] populated. children[0] can
+ * be set to NULL. We only need to reserve memory for 2 adresses (0 and 1) and 
+ * can set the alphabet_size to 2. Implicitly assuming that any index of 2 and
+ * higher is NULL. The TrieNode_GetChild function has codes this behaviour. 
+ * When nodes are sparsely populated this saves a lot of memory.
+ * 
+ * The highest bit of alphabet_size is used to store whether the node is 
+ * terminal, in other words a leaf node. When a node is a leaf node, it has a
+ * suffix, which is stored at the address of children. This suffix is of type
+ * uint8_t. It allows for storing sequences efficiently as in a radix tree, at
+ * the terminal ends of the trie.
+ * When this is the case, the remaining 31 bits of the alphabet_size store the
+ * suffix size.
+ * 
+ * A count higher than 0 signifies that there are sequences that have this node 
+ * as last node. The amount of sequences is stored in this count. Nodes with
+ * a count are not necessarily terminal (a leaf node) as sequences stored in 
+ * the trie may be of unequal size.
+ * 
+ * The advantage of storing both normal and leaf nodes in the same struct is 
+ * that it makes it easy to expand or shrink the tree as desired.
+ */
 typedef struct {
     uint32_t alphabet_size;
     uint32_t count;
@@ -66,13 +105,15 @@ TrieNode_GetChild(TrieNode * parent, size_t index) {
 static TrieNode * 
 TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     if (alphabet_size > TRIE_NODE_ALPHABET_MAX_SIZE) {
-        PyErr_SetString(PyExc_SystemError, "TrieNode resized with excessive alphabet size");
+        PyErr_SetString(PyExc_SystemError, 
+                        "TrieNode resized with excessive alphabet size");
         return NULL;
     }
     if (alphabet_size == trie_node->alphabet_size) {
         return trie_node;
     }
-    size_t old_alphabet_size = TrieNode_IS_TERMINAL(trie_node) ? 0 : trie_node->alphabet_size;
+    size_t old_alphabet_size = 
+        TrieNode_IS_TERMINAL(trie_node) ? 0 : trie_node->alphabet_size;
     size_t new_size = sizeof(TrieNode) + sizeof(TrieNode *) * alphabet_size;
     TrieNode * new_node = PyMem_Realloc(trie_node, new_size);
     if (new_node == NULL) {
@@ -81,6 +122,7 @@ TrieNode_Resize(TrieNode * trie_node, uint32_t alphabet_size) {
     }
     new_node->alphabet_size = alphabet_size;
     if (alphabet_size > old_alphabet_size) {
+        // Set the memory block containing the pointers to the new children to NULL
         size_t empty_size = (alphabet_size - old_alphabet_size) * sizeof(TrieNode *);
         memset(new_node->children + old_alphabet_size, 0, empty_size);
     }
@@ -164,6 +206,7 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
                 return 0;
             }
         }
+        // Store the suffix in a temporary space and add  it to this node.
         uint8_t * suffix = TrieNode_GET_SUFFIX(this_node);
         uint8_t * tmp = PyMem_Malloc(suffix_size);
         if (tmp == NULL) {
@@ -189,12 +232,13 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
 
     uint8_t character = sequence[0];
     uint8_t node_index = alphabet->to_index[character];
-    if (node_index == 255) {
+    if (node_index == 255) { // Letter not present in the alphabet. Add it.
         node_index = alphabet->size;
         alphabet->to_index[character] = node_index;
         alphabet->from_index[node_index] = character;
         alphabet->size = node_index + 1;
     }
+
     if (node_index >= this_node->alphabet_size) {
         TrieNode * new_node = TrieNode_Resize(this_node, node_index + 1);
         if (new_node == NULL) {
@@ -269,13 +313,17 @@ TrieNode_DeleteSequence(
     ssize_t ret = TrieNode_DeleteSequence(
         (TrieNode **)&(this_node->children[node_index]), 
         sequence + 1, sequence_size - 1, alphabet);
+    
+    // Make sure the tree is properly pruned so there are no dead-end nodes
+    // that will mess up the search algorithms. 
     if (ret > -1) {
         for (size_t i=0; i < this_node->alphabet_size; i+=1) {
             if (TrieNode_GET_CHILD(this_node, i) != NULL) {
                 return ret;
             }
         }
-        // All children are null
+        // All children are NULL. If the node has a count it can be converted
+        // into a leave node. If not, it can be freed to.
         if (this_node->count) {
             trie_node_address[0] = TrieNode_NewLeaf(NULL, 0, this_node->count);
         }
@@ -597,6 +645,10 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         PyErr_SetString(PyExc_LookupError, "No sequences left in Trie.");
         return NULL;
     }
+
+    // Get an initial sequence to build the cluster around.
+    // By making the buffer max_sequence_size we should not run into buffer 
+    // overflows.
     uint32_t buffer_size = self->max_sequence_size;
     uint8_t *buffer = PyMem_Malloc(buffer_size);
     if (buffer == NULL) {
@@ -604,22 +656,21 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     ssize_t sequence_size = TrieNode_GetSequence(self->root, &(self->alphabet), 
                                                 buffer, buffer_size);
-    if (sequence_size == - 1){
+    if (sequence_size == -1){
         PyErr_SetString(PyExc_RuntimeError, "Incorrect buffer size used.");
         PyMem_Free(buffer);
         return NULL;
     }
+    // PyUnicode_New + memcpy is faster than PyUnicode_DecodeXXXX family.
     PyObject * first_sequence_obj = PyUnicode_New(sequence_size, 127);
     if (first_sequence_obj == NULL) {
         PyMem_Free(buffer);
         return PyErr_NoMemory();
     }
     memcpy(PyUnicode_DATA(first_sequence_obj), buffer, sequence_size);
-    buffer = PyMem_Realloc(buffer, sequence_size);
-    if (buffer == NULL){
-        Py_DECREF(first_sequence_obj);
-        return PyErr_NoMemory();
-    }
+
+    // The sequence is saved in a Python object and can be removed from the 
+    // trie.
     uint8_t * template_sequence = PyUnicode_DATA(first_sequence_obj);
     uint32_t template_size = sequence_size;
     ssize_t template_count = TrieNode_DeleteSequence(&(self->root), 
@@ -630,6 +681,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         Py_DECREF(first_sequence_obj);
         return NULL;
     }
+    // Initiate a cluster from the obtained sequence.
     PyObject * cluster = PyList_New(1);
     PyObject * tup = PyTuple_New(2);
     PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(template_count));
@@ -638,6 +690,18 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     if (max_distance == 0) {
         return cluster;
     }
+
+    // For each sequence in the cluster.
+    // - Find a neighbour at the specified Hamming distance. 
+    // - If found:
+    //      - Store it in a PyObject *. Store the count. 
+    //      - Add it to the cluster
+    //      - Delete the neighbour from the trie.
+    //      - Look for a new neighbour and repeat the above steps.
+    // - If not found, go to the next sequence in the cluster and repeat the
+    //   above steps.
+    // This way we find the neighbours for all sequences and keep expanding the
+    // cluster until no other sequences can be found. 
     Py_ssize_t cluster_index = 0;
     Py_ssize_t cluster_size = 1;
     PyObject * template_tup;
