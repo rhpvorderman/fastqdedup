@@ -20,6 +20,12 @@
 #include <stdint.h>
 
 typedef struct {
+    uint8_t to_index[256];
+    uint8_t from_index[256];
+    uint8_t size;
+} Alphabet;
+
+typedef struct {
     uint32_t alphabet_size;
     uint32_t count;
     void * children[0];
@@ -109,13 +115,11 @@ TrieNode_NewLeaf(uint8_t * suffix, uint32_t suffix_size, uint32_t sequence_count
 }
 
 static int
-TrieNode_AddSequence(TrieNode ** trie_node,
-                     uint8_t * sequence, 
+TrieNode_AddSequence(TrieNode **trie_node,
+                     uint8_t *sequence, 
                      uint32_t sequence_size, 
-                     uint8_t *alphabet_size, 
-                     uint8_t * charmap,
-                     uint8_t * alphabet,
-                     uint32_t sequence_count) {
+                     uint32_t sequence_count,
+                     Alphabet *alphabet) {
     TrieNode * this_node = trie_node[0];
     if (this_node == NULL) {
         trie_node[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
@@ -140,7 +144,7 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         uint32_t count = this_node->count;
         this_node->count = 0;
         int ret = TrieNode_AddSequence(
-            trie_node, tmp, suffix_size, alphabet_size, charmap, alphabet, count);
+            trie_node, tmp, suffix_size, count, alphabet);
         this_node = trie_node[0];
         PyMem_Free(tmp);
         if (ret != 0){
@@ -153,12 +157,12 @@ TrieNode_AddSequence(TrieNode ** trie_node,
     }
 
     uint8_t character = sequence[0];
-    uint8_t node_index = charmap[character];
+    uint8_t node_index = alphabet->to_index[character];
     if (node_index == 255) {
-        node_index = *alphabet_size;
-        charmap[character] = node_index;
-        alphabet[node_index] = character;
-        *alphabet_size = node_index + 1;
+        node_index = alphabet->size;
+        alphabet->to_index[character] = node_index;
+        alphabet->from_index[node_index] = character;
+        alphabet->size = node_index + 1;
     }
     if (node_index >= this_node->alphabet_size) {
         TrieNode * new_node = TrieNode_Resize(this_node, node_index + 1);
@@ -171,18 +175,16 @@ TrieNode_AddSequence(TrieNode ** trie_node,
     return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
                                  sequence + 1, 
                                  sequence_size - 1, 
-                                 alphabet_size, 
-                                 charmap,
-                                 alphabet,
-                                 sequence_count);
+                                 sequence_count,
+                                 alphabet);
 }
 
 static ssize_t
 TrieNode_DeleteSequence(
-    TrieNode ** trie_node,
-    uint8_t * sequence,
+    TrieNode **trie_node,
+    uint8_t *sequence,
     uint32_t sequence_size,
-    const uint8_t * charmap)
+    Alphabet *alphabet)
 {
     TrieNode * this_node = trie_node[0];
     uint32_t count;
@@ -210,7 +212,7 @@ TrieNode_DeleteSequence(
     }
 
     uint8_t character = sequence[0];
-    uint8_t node_index = charmap[character];
+    uint8_t node_index = alphabet->to_index[character];
     if (node_index == 255) {
         return -1;
     }
@@ -222,7 +224,7 @@ TrieNode_DeleteSequence(
     if (next_node == NULL) {
         return -1;
     }
-    ssize_t ret = TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, charmap);
+    ssize_t ret = TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, alphabet);
     if (ret > -1) {
         for (size_t i=0; i < this_node->alphabet_size; i+=1) {
             if (TrieNode_GET_CHILD(this_node, i) != NULL) {
@@ -247,9 +249,8 @@ TrieNode_FindNearest(
     const uint8_t * sequence,
     uint32_t sequence_length,
     int max_distance, 
-    const uint8_t * charmap, 
-    uint8_t *buffer,
-    const uint8_t * alphabet) 
+    Alphabet *alphabet, 
+    uint8_t *buffer) 
 {
     if (max_distance < 0) {
         return 0;
@@ -280,7 +281,7 @@ TrieNode_FindNearest(
     }
 
     uint8_t character = sequence[0];
-    uint8_t node_index = charmap[character];
+    uint8_t node_index = alphabet->to_index[character];
     uint8_t *new_buffer = NULL; 
     if (buffer) {
         new_buffer = buffer + 1;
@@ -295,11 +296,11 @@ TrieNode_FindNearest(
                 continue;
             }
             if (buffer) {
-                buffer[0] = alphabet[i];
+                buffer[0] = alphabet->from_index[i];
             }
             int ret = TrieNode_FindNearest(
-                child, sequence + 1, sequence_length -1, max_distance, charmap, 
-                new_buffer, alphabet);
+                child, sequence + 1, sequence_length -1, max_distance, alphabet, 
+                new_buffer);
             if (ret) {
                 return ret; 
             }
@@ -311,8 +312,8 @@ TrieNode_FindNearest(
         buffer[0] = character;
     }
     return TrieNode_FindNearest(
-        child, sequence + 1, sequence_length -1, max_distance, charmap, 
-        new_buffer, alphabet);
+        child, sequence + 1, sequence_length -1, max_distance, alphabet, 
+        new_buffer);
 }
 
 /**
@@ -331,7 +332,7 @@ TrieNode_FindNearest(
 static ssize_t
 TrieNode_GetSequence(
     TrieNode *trie_node, 
-    const uint8_t *alphabet, 
+    const Alphabet *alphabet, 
     uint8_t *buffer, 
     uint32_t buffer_size) 
 {
@@ -356,7 +357,7 @@ TrieNode_GetSequence(
         if (child == NULL) {
             continue;
         }
-        buffer[0] = alphabet[i];
+        buffer[0] = alphabet->from_index[i];
         ssize_t ret = TrieNode_GetSequence(child, alphabet, buffer + 1, buffer_size - 1);
         if (ret == -1) {
             return ret;
@@ -374,9 +375,7 @@ TrieNode_GetSequence(
 
 typedef struct {
     PyObject_HEAD
-    uint8_t charmap[256];
-    uint8_t alphabet[256];
-    uint8_t alphabet_size;
+    Alphabet alphabet;
     Py_ssize_t number_of_sequences;
     uint32_t max_sequence_size;
     TrieNode * root;
@@ -396,9 +395,9 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
     Trie * new_trie = PyObject_New(Trie, type);
-    new_trie->alphabet_size = 0;
-    memset(new_trie->charmap, 255, 256);
-    memset(new_trie->alphabet, 0, 256);
+    new_trie->alphabet.size = 0;
+    memset(new_trie->alphabet.to_index, 255, 256);
+    memset(new_trie->alphabet.from_index, 0, 256);
     new_trie->root = NULL;
     new_trie->number_of_sequences = 0;
     new_trie->max_sequence_size = 0; 
@@ -440,7 +439,7 @@ Trie_add_sequence(Trie *self, PyObject * sequence) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    if (TrieNode_AddSequence(&(self->root), seq, seq_size, &(self->alphabet_size), self->charmap, self->alphabet, 1) == 0) {
+    if (TrieNode_AddSequence(&(self->root), seq, seq_size, 1, &(self->alphabet)) == 0) {
         self->number_of_sequences += 1;
         if (seq_size > self->max_sequence_size) {
             self->max_sequence_size = seq_size;
@@ -500,7 +499,7 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
         return NULL;
     }
     int ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
-              self->charmap, NULL, NULL);
+                                   &(self->alphabet), NULL);
     return PyBool_FromLong(ret);
 }
 
@@ -545,7 +544,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     if (buffer == NULL) {
         return PyErr_NoMemory();
     }
-    ssize_t sequence_size = TrieNode_GetSequence(self->root, self->alphabet, 
+    ssize_t sequence_size = TrieNode_GetSequence(self->root, &(self->alphabet), 
                                                 buffer, buffer_size);
     if (sequence_size == - 1){
         PyErr_SetString(PyExc_RuntimeError, "Incorrect buffer size used.");
@@ -566,7 +565,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     uint8_t * template_sequence = PyUnicode_DATA(first_sequence_obj);
     uint32_t template_size = sequence_size;
     ssize_t template_count = TrieNode_DeleteSequence(&(self->root), 
-                              template_sequence, template_size, self->charmap);
+                              template_sequence, template_size, &(self->alphabet));
     if (template_count == -1) {
         PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
         PyMem_Free(buffer);
@@ -594,12 +593,12 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         template_sequence = PyUnicode_DATA(template);
         template_size = PyUnicode_GET_LENGTH(template);
         sequence_count = TrieNode_FindNearest(self->root, template_sequence, template_size,
-            max_distance, self->charmap, buffer, self->alphabet);
+            max_distance, &(self->alphabet), buffer);
         if (sequence_count) {
             sequence = PyUnicode_New(sequence_size, 127);
             memcpy(PyUnicode_DATA(sequence), buffer, template_size);
             ret = TrieNode_DeleteSequence(&(self->root), buffer,
-                                          template_size, self->charmap);
+                                          template_size, &(self->alphabet));
             if (ret == -1) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 PyMem_Free(buffer);
