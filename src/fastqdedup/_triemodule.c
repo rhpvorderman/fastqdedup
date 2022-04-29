@@ -521,7 +521,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         PyErr_Format(PyExc_TypeError, 
                      "max_hamming_distance expected an int not %s", 
                      Py_TYPE(max_hamming_distance)->tp_name);
-        return 0;
+        return NULL;
     }
     int max_distance = PyLong_AsLong(max_hamming_distance);
     if (max_distance < 0) {
@@ -570,14 +570,48 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     PyObject * cluster = PyList_New(1);
     PyObject * tup = PyTuple_New(2);
-    PyTuple_SET_ITEM(tup, 0, PyLong_FromUnsignedLong(template_count));
+    PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(template_count));
     PyTuple_SET_ITEM(tup, 1, first_sequence_obj);
     PyList_SET_ITEM(cluster, 0, tup);
     if (max_distance == 0) {
         return cluster;
     }
-    PyErr_SetString(PyExc_NotImplementedError, "Did not implement distances more than 0");
-    return NULL;
+    Py_ssize_t cluster_index = 0;
+    Py_ssize_t cluster_size = 1;
+    PyObject * template;
+    PyObject * sequence;
+    ssize_t sequence_count;
+    while (cluster_index != cluster_size) {
+        template = PyList_GET_ITEM(cluster, cluster_index);
+        template_sequence = PyUnicode_DATA(template);
+        template_size = PyUnicode_GET_LENGTH(template);
+        sequence_size = TrieNode_FindNearest(self->root, template_sequence, template_size, 
+            max_distance, self->charmap, buffer, self->alphabet);
+        if (sequence_size) {
+            sequence = PyUnicode_New(sequence_size, 127);
+            memcpy(PyUnicode_DATA(sequence), buffer, sequence_size);
+            sequence_count = TrieNode_DeleteSequence(&(self->root), buffer, 
+                                                     sequence_size, self->charmap);
+            if (sequence_count == -1) {
+                PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
+                PyMem_Free(buffer);
+                Py_DECREF(sequence);
+                Py_DECREF(cluster);
+                return NULL;
+            }
+            tup = PyTuple_New(2);
+            PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(sequence_count));
+            PyTuple_SET_ITEM(tup, 1, sequence);
+            PyList_Append(cluster, tup);
+            cluster_size += 1;
+        }
+        else {
+            // Use the next sequence in the appended list as template. This way
+            // we traverse all sequences to create a cluster.
+            cluster_index +=1;
+        }
+    }
+    return cluster;
 }
 
 

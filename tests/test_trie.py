@@ -52,9 +52,9 @@ def test_trie_pop_cluster():
     cluster_list = []
     while True:
         try:
-            cluster = trie.pop_cluster(0)
+            cluster = trie.pop_cluster(1)
         except LookupError:
             break
         cluster_list.append(cluster)
-    cluster_set = set(set(cluster) for cluster in cluster_list)
+    cluster_set = [set(cluster) for cluster in cluster_list]
     assert {(2, "AAAA"), (1, "AAGC"), (1, "AAAC"), (1, "AGGC")} in cluster_set
