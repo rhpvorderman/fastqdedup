@@ -578,21 +578,24 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     Py_ssize_t cluster_index = 0;
     Py_ssize_t cluster_size = 1;
+    PyObject * template_tup;
     PyObject * template;
     PyObject * sequence;
     ssize_t sequence_count;
+    ssize_t ret;
     while (cluster_index != cluster_size) {
-        template = PyList_GET_ITEM(cluster, cluster_index);
+        template_tup = PyList_GET_ITEM(cluster, cluster_index);
+        template = PyTuple_GET_ITEM(template_tup, 1);
         template_sequence = PyUnicode_DATA(template);
         template_size = PyUnicode_GET_LENGTH(template);
-        sequence_size = TrieNode_FindNearest(self->root, template_sequence, template_size, 
+        sequence_count = TrieNode_FindNearest(self->root, template_sequence, template_size,
             max_distance, self->charmap, buffer, self->alphabet);
-        if (sequence_size) {
+        if (sequence_count) {
             sequence = PyUnicode_New(sequence_size, 127);
-            memcpy(PyUnicode_DATA(sequence), buffer, sequence_size);
-            sequence_count = TrieNode_DeleteSequence(&(self->root), buffer, 
+            memcpy(PyUnicode_DATA(sequence), buffer, template_size);
+            ret = TrieNode_DeleteSequence(&(self->root), buffer,
                                                      sequence_size, self->charmap);
-            if (sequence_count == -1) {
+            if (ret == -1) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 PyMem_Free(buffer);
                 Py_DECREF(sequence);
