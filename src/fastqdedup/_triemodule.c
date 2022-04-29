@@ -266,7 +266,9 @@ TrieNode_DeleteSequence(
     if (next_node == NULL) {
         return -1;
     }
-    ssize_t ret = TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, alphabet);
+    ssize_t ret = TrieNode_DeleteSequence(
+        (TrieNode **)&(this_node->children[node_index]), 
+        sequence + 1, sequence_size - 1, alphabet);
     if (ret > -1) {
         for (size_t i=0; i < this_node->alphabet_size; i+=1) {
             if (TrieNode_GET_CHILD(this_node, i) != NULL) {
