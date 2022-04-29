@@ -349,11 +349,19 @@ TrieNode_GetSequence(
         ssize_t ret = TrieNode_GetSequence(child, alphabet, buffer + 1, buffer_size - 1);
         if (ret == -1) {
             return ret;
-        } 
+        }
+        if (ret == -2) {
+            // Child node has a count of 0
+            continue;
+        }
         return 1 + ret;
     }
     // No children found.
-    return 0;
+    if (trie_node->count > 0) {
+        return 0;
+    }
+    // Fail when the node count is 0 so this does not store a sequence.
+    return -2;
 }
 
 
@@ -529,7 +537,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     ssize_t sequence_size = TrieNode_GetSequence(self->root, self->alphabet, 
                                                 buffer, buffer_size);
-    if (sequence_size == 0) {
+    if (sequence_size == -2) {
         PyErr_SetString(PyExc_LookupError, "No sequences left in Trie.");
         PyMem_Free(buffer);
         return NULL;
@@ -568,7 +576,8 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     if (max_distance == 0) {
         return cluster;
     }
-    Py_RETURN_NOTIMPLEMENTED;
+    PyErr_SetString(PyExc_NotImplementedError, "Did not implement distances more than 0");
+    return NULL;
 }
 
 

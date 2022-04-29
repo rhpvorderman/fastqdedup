@@ -35,3 +35,26 @@ def test_trie_subseq():
     assert trie.contains_sequence("GATTA")
     assert trie.contains_sequence("GATTACA")
     assert not trie.contains_sequence("GATTAC")
+
+
+def test_trie_pop_cluster():
+    trie = Trie()
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAC")
+    trie.add_sequence("AAGC")
+    trie.add_sequence("AGGC")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("TTCA")
+    trie.add_sequence("TTCC")
+    trie.add_sequence("TTTA")
+    cluster_list = []
+    while True:
+        try:
+            cluster = trie.pop_cluster(0)
+        except LookupError:
+            break
+        cluster_list.append(cluster)
+    cluster_set = set(set(cluster) for cluster in cluster_list)
+    assert {(2, "AAAA"), (1, "AAGC"), (1, "AAAC"), (1, "AGGC")} in cluster_set
