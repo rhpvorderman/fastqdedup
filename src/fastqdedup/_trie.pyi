@@ -14,9 +14,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with fastqdedup.  If not, see <https://www.gnu.org/licenses/
 
+from typing import List, Tuple
+
+
 class Trie:
     def __init__(self): ...
 
-    def add_sequence(self, sequence: str): ...
+    def add_sequence(self, sequence: str, /): ...
 
-    def contains_sequence(self, sequence: str, max_hamming_distance: int = 0): ...
+    def contains_sequence(self, 
+                          sequence: str,
+                          max_hamming_distance: int = 0
+                          ) -> bool: ...
+
+    def pop_cluster(max_hamming_distance, /) -> List[Tuple[int, str]]: ... 
+
