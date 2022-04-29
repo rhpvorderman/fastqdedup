@@ -117,6 +117,10 @@ TrieNode_AddSequence(TrieNode ** trie_node,
                      uint8_t * alphabet,
                      uint32_t sequence_count) {
     TrieNode * this_node = trie_node[0];
+    if (this_node == NULL) {
+        trie_node[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
+        return 0;
+    }
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
         if (sequence_size == suffix_size) {
@@ -163,15 +167,6 @@ TrieNode_AddSequence(TrieNode ** trie_node,
         }
         this_node = new_node;
         trie_node[0] = this_node;
-    }
-    TrieNode * next_node = TrieNode_GetChild(this_node, node_index);
-    if (next_node == NULL) {
-        next_node = TrieNode_NewLeaf(sequence + 1, sequence_size -1, sequence_count);
-        if (next_node == NULL) {
-            return -1;
-        }
-        this_node->children[node_index] = next_node;
-        return 0;
     }
     return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
                                  sequence + 1, 
@@ -227,10 +222,26 @@ TrieNode_DeleteSequence(
     if (next_node == NULL) {
         return -1;
     }
-    return TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, charmap);
+    ssize_t ret = TrieNode_DeleteSequence(&(this_node->children[node_index]), sequence + 1, sequence_size - 1, charmap);
+    if (ret > -1) {
+        for (size_t i=0; i < this_node->alphabet_size; i+=1) {
+            if (TrieNode_GET_CHILD(this_node, i) != NULL) {
+                return ret;
+            }
+        }
+        // All children are null
+        if (this_node->count) {
+            trie_node[0] = TrieNode_NewLeaf(NULL, 0, this_node->count);
+        }
+        else {
+            trie_node[0] = NULL;
+        }
+        PyMem_Free(this_node);
+    }
+    return ret;
 }
 
-static uint32_t
+static ssize_t
 TrieNode_FindNearest(
     TrieNode * trie_node, 
     const uint8_t * sequence,
@@ -350,10 +361,6 @@ TrieNode_GetSequence(
         if (ret == -1) {
             return ret;
         }
-        if (ret == -2) {
-            // Child node has a count of 0
-            continue;
-        }
         return 1 + ret;
     }
     // No children found.
@@ -361,7 +368,7 @@ TrieNode_GetSequence(
         return 0;
     }
     // Fail when the node count is 0 so this does not store a sequence.
-    return -2;
+    return -1;
 }
 
 
@@ -392,7 +399,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     new_trie->alphabet_size = 0;
     memset(new_trie->charmap, 255, 256);
     memset(new_trie->alphabet, 0, 256);
-    new_trie->root = TrieNode_NewLeaf(NULL, 0, 0);
+    new_trie->root = NULL;
     new_trie->number_of_sequences = 0;
     new_trie->max_sequence_size = 0; 
     return (PyObject *)new_trie;
@@ -529,7 +536,10 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
                         "max_hamming distance should be larger than 0");
         return NULL;
     }
-    
+    if (self->root == NULL) {
+        PyErr_SetString(PyExc_LookupError, "No sequences left in Trie.");
+        return NULL;
+    }
     uint32_t buffer_size = self->max_sequence_size;
     uint8_t *buffer = PyMem_Malloc(buffer_size);
     if (buffer == NULL) {
@@ -537,11 +547,6 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     }
     ssize_t sequence_size = TrieNode_GetSequence(self->root, self->alphabet, 
                                                 buffer, buffer_size);
-    if (sequence_size == -2) {
-        PyErr_SetString(PyExc_LookupError, "No sequences left in Trie.");
-        PyMem_Free(buffer);
-        return NULL;
-    }
     if (sequence_size == - 1){
         PyErr_SetString(PyExc_RuntimeError, "Incorrect buffer size used.");
         PyMem_Free(buffer);
@@ -583,7 +588,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyObject * sequence;
     ssize_t sequence_count;
     ssize_t ret;
-    while (cluster_index != cluster_size) {
+    while ((cluster_index != cluster_size) && (self->root != NULL)) {
         template_tup = PyList_GET_ITEM(cluster, cluster_index);
         template = PyTuple_GET_ITEM(template_tup, 1);
         template_sequence = PyUnicode_DATA(template);
@@ -594,7 +599,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
             sequence = PyUnicode_New(sequence_size, 127);
             memcpy(PyUnicode_DATA(sequence), buffer, template_size);
             ret = TrieNode_DeleteSequence(&(self->root), buffer,
-                                                     sequence_size, self->charmap);
+                                          template_size, self->charmap);
             if (ret == -1) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 PyMem_Free(buffer);
