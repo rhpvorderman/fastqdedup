@@ -96,14 +96,13 @@ def deduplicate_cluster(input_files: List[str],
     deduplicated_set = set()
     while True:
         try:
-            cluster = trie.pop_cluster()
+            cluster = trie.pop_cluster(max_distance)
         except LookupError:
             break
         if len(cluster) > 1:
             cluster.sort()
         # Hash the key first before storing in the set to save memory.
         deduplicated_set.add(hash(cluster[0][0]))
-
     # Read the fastq files again and filter against the deduplicated set
     input_readers = [file_to_fastq_reader(f) for f in input_files]
     output_stack = contextlib.ExitStack()
