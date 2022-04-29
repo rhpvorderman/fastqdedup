@@ -101,8 +101,8 @@ def deduplicate_cluster(input_files: List[str],
             break
         if len(cluster) > 1:
             cluster.sort()
+        count, key = cluster[0]
         # Hash the key first before storing in the set to save memory.
-        key = cluster[0][1]
         deduplicated_set.add(hash(key))
     del(trie)
     # Read the fastq files again and filter against the deduplicated set
