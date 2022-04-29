@@ -347,7 +347,8 @@ TrieNode_DeleteSequence(
  * @param buffer a buffer to store the found sequence in. Can be set to NULL 
  *               for no storage. The buffer should have a memory size of 
  *               sequence_length.
- * @return ssize_t the count of the found sequences.
+ * @return ssize_t the count of the found sequences. If 0 this 
+ *                indicates the sequence was not found.
  */
 static ssize_t
 TrieNode_FindNearest(
@@ -358,9 +359,6 @@ TrieNode_FindNearest(
     Alphabet *alphabet, 
     uint8_t *buffer) 
 {
-    if (max_distance < 0) {
-        return 0;
-    }
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
         if (sequence_length != suffix_length) {
@@ -393,33 +391,44 @@ TrieNode_FindNearest(
         new_buffer = buffer + 1;
     }
     TrieNode * child = TrieNode_GetChild(trie_node, node_index);
-    if (child == NULL) {
-        // Mismatch, try all children and deduct a point from the max distance.
-        max_distance -= 1;
-        for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
-            child = TrieNode_GET_CHILD(trie_node, i);
-            if (child == NULL) {
-                continue;
-            }
-            if (buffer) {
-                buffer[0] = alphabet->from_index[i];
-            }
-            int ret = TrieNode_FindNearest(
-                child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-                new_buffer);
-            if (ret) {
-                return ret; 
-            }
+    ssize_t result;
+    if (child != NULL) {
+        // Found a match, continue the computation with the child node.
+        if (buffer) {
+            buffer[0] = character;
         }
+        result = TrieNode_FindNearest(
+            child, sequence + 1, sequence_length -1, max_distance, alphabet, 
+            new_buffer);
+        if (result) {
+            return result;
+        }
+    }
+    // Mismatch, try all children and deduct a point from the max distance.
+    max_distance -= 1;
+    if (max_distance < 0) {
         return 0;
     }
-    // Found a match, continue the computation with the child node.
-    if (buffer) {
-        buffer[0] = character;
+    for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
+        if (i == node_index){
+            continue;  // Already tried this route.
+        }
+        child = TrieNode_GET_CHILD(trie_node, i);
+        if (child == NULL) {
+            continue;
+        }
+        if (buffer) {
+            buffer[0] = alphabet->from_index[i];
+        }
+        result = TrieNode_FindNearest(
+            child, sequence + 1, sequence_length -1, max_distance, alphabet, 
+            new_buffer);
+        if (result) {
+            return result; 
+        }
     }
-    return TrieNode_FindNearest(
-        child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-        new_buffer);
+    // All children searched but could not find anything.
+    return 0;
 }
 
 /**
@@ -604,8 +613,8 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
             TRIE_NODE_SUFFIX_MAX_SIZE);
         return NULL;
     }
-    int ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
-                                   &(self->alphabet), NULL);
+    ssize_t ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
+                                       &(self->alphabet), NULL);
     return PyBool_FromLong(ret);
 }
 
