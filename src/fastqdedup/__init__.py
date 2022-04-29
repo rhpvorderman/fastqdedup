@@ -102,7 +102,9 @@ def deduplicate_cluster(input_files: List[str],
         if len(cluster) > 1:
             cluster.sort()
         # Hash the key first before storing in the set to save memory.
-        deduplicated_set.add(hash(cluster[0][0]))
+        key = cluster[0][1]
+        deduplicated_set.add(hash(key))
+    del(trie)
     # Read the fastq files again and filter against the deduplicated set
     input_readers = [file_to_fastq_reader(f) for f in input_files]
     output_stack = contextlib.ExitStack()
@@ -112,7 +114,9 @@ def deduplicate_cluster(input_files: List[str],
         output_stack.enter_context(output_opener(x)) for x in output_files]
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
-        if hash(key) in deduplicated_set:
+        h = hash(key)
+        if h in deduplicated_set:
+            deduplicated_set.remove(h)
             for record, output in zip(records, output_files):
                 output.write(record.fastq_bytes())
 
