@@ -494,11 +494,15 @@ typedef struct {
     Py_ssize_t number_of_sequences;
     uint32_t max_sequence_size;
     TrieNode * root;
+    uint8_t *sequence_buffer;
+    Py_ssize_t sequence_buffer_size;
 } Trie;
 
 static void 
 Trie_Dealloc(Trie * self) {
     TrieNode_Destroy(self->root);
+    PyMem_Free(self->sequence_buffer);
+    Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject *
@@ -509,14 +513,16 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             args, kwargs, format, keywords)) {
         return NULL;
     }
-    Trie * new_trie = PyObject_New(Trie, type);
-    new_trie->alphabet.size = 0;
-    memset(new_trie->alphabet.to_index, 255, 256);
-    memset(new_trie->alphabet.from_index, 0, 256);
-    new_trie->root = NULL;
-    new_trie->number_of_sequences = 0;
-    new_trie->max_sequence_size = 0; 
-    return (PyObject *)new_trie;
+    Trie *self = PyObject_New(Trie, type);
+    self->alphabet.size = 0;
+    memset(self->alphabet.to_index, 255, 256);
+    memset(self->alphabet.from_index, 0, 256);
+    self->root = NULL;
+    self->number_of_sequences = 0;
+    self->max_sequence_size = 0;
+    self->sequence_buffer = NULL;
+    self->sequence_buffer_size = 0;
+    return (PyObject *)self;
 }
 
 PyDoc_STRVAR(Trie_add_sequence__doc__,
@@ -655,25 +661,29 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         return NULL;
     }
 
-    // Get an initial sequence to build the cluster around.
     // By making the buffer max_sequence_size we should not run into buffer 
     // overflows.
-    uint32_t buffer_size = self->max_sequence_size;
-    uint8_t *buffer = PyMem_Malloc(buffer_size);
-    if (buffer == NULL) {
-        return PyErr_NoMemory();
+    if (self->sequence_buffer_size != self->max_sequence_size) {
+        uint8_t *tmp = PyMem_Realloc(self->sequence_buffer, self->max_sequence_size);
+        if (tmp == NULL) {
+            return PyErr_NoMemory();
+        }
+        self->sequence_buffer = tmp;
+        self->sequence_buffer_size = self->max_sequence_size;
     }
+    uint8_t *buffer = self->sequence_buffer;
+    uint32_t buffer_size = self->sequence_buffer_size;
+
+    // Get an initial sequence to build the cluster around.
     ssize_t sequence_size = TrieNode_GetSequence(self->root, &(self->alphabet), 
-                                                buffer, buffer_size);
+                                                 buffer, buffer_size);
     if (sequence_size == -1){
         PyErr_SetString(PyExc_RuntimeError, "Incorrect buffer size used.");
-        PyMem_Free(buffer);
         return NULL;
     }
     // PyUnicode_New + memcpy is faster than PyUnicode_DecodeXXXX family.
     PyObject * first_sequence_obj = PyUnicode_New(sequence_size, 127);
     if (first_sequence_obj == NULL) {
-        PyMem_Free(buffer);
         return PyErr_NoMemory();
     }
     memcpy(PyUnicode_DATA(first_sequence_obj), buffer, sequence_size);
@@ -686,7 +696,6 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
                               template_sequence, template_size, &(self->alphabet));
     if (template_count == -1) {
         PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
-        PyMem_Free(buffer);
         Py_DECREF(first_sequence_obj);
         return NULL;
     }
@@ -732,7 +741,6 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
                                           template_size, &(self->alphabet));
             if (ret == -1) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
-                PyMem_Free(buffer);
                 Py_DECREF(sequence);
                 Py_DECREF(cluster);
                 return NULL;
