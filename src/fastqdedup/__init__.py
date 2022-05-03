@@ -102,7 +102,8 @@ def deduplicate_cluster(input_files: List[str],
         except LookupError:
             break
         if len(cluster) > 1:
-            cluster.sort()
+            # Reverse sort so read with highest count is first.
+            cluster.sort(reverse=True)
         count, key = cluster[0]
         # Hash the key first before storing in the set to save memory.
         deduplicated_set.add(hash(key))
