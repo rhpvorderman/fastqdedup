@@ -67,7 +67,7 @@ def deduplicate_naive(input_files: List[str],
                                       compresslevel=1, threads=0)
     outputs: List[IO[Any]] = [
         output_stack.enter_context(output_opener(x)) for x in output_files]
-    trie = Trie()
+    trie = Trie(alphabet="ACGTN")
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
         if not trie.contains_sequence(key, max_distance):
