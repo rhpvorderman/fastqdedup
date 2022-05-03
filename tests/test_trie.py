@@ -16,6 +16,8 @@
 
 from fastqdedup import Trie
 
+import pytest
+
 
 def test_trie_one_seq():
     trie = Trie()
@@ -69,3 +71,14 @@ def test_trie_pop_cluster():
         assert expected_cluster in cluster_set
         cluster_set.remove(expected_cluster)
     assert not cluster_set
+
+
+def test_trie_new_with_alphabet():
+    trie = Trie(alphabet="acd")
+    assert trie.alphabet == "acd"
+
+
+def test_trie_alphabet_repeated():
+    with pytest.raises(ValueError) as error:
+        Trie(alphabet="abcc")
+    error.match("c was repeated")

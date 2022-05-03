@@ -47,7 +47,7 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
             PyErr_SetString(PyExc_ValueError, "Maximum alphabet length exceeded");
             return -1;
         }
-        c = string[0];
+        c = string[alphabet->size];
         if (c == 0) {
             return 0;
         }
@@ -547,7 +547,7 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
             &PyUnicode_Type, &alphabet)) {
         return NULL;
     }
-    uint8_t *alphabet_string = "";
+    uint8_t *alphabet_string = (uint8_t *)"";
     if (alphabet != NULL) {
         if (!PyUnicode_IS_COMPACT_ASCII(alphabet)) {
             PyErr_SetString(PyExc_ValueError, "Alphabet should be an ASCII string.");
@@ -556,7 +556,10 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         alphabet_string = PyUnicode_1BYTE_DATA(alphabet);
     }
     Trie *self = PyObject_New(Trie, type);
-    Alphabet_InitializeFromString(&self->alphabet, alphabet_string);
+    if (Alphabet_InitializeFromString(&self->alphabet, alphabet_string) != 0) {
+        Py_DECREF(self);
+        return NULL;
+    }
     self->root = NULL;
     self->number_of_sequences = 0;
     self->max_sequence_size = 0;
@@ -564,6 +567,18 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     self->sequence_buffer_size = 0;
     return (PyObject *)self;
 }
+
+static PyObject *
+Trie_get_alphabet(Trie *self, void *closure) {
+    return PyUnicode_DecodeLatin1((char *)(self->alphabet.from_index), 
+                                   self->alphabet.size, NULL);
+}
+
+static PyGetSetDef Trie_properties[] = {
+    {"alphabet", (getter)Trie_get_alphabet, NULL, NULL, 
+    "The alphabet this node uses."},
+    {NULL}
+};
 
 PyDoc_STRVAR(Trie_add_sequence__doc__,
 "add_sequence($self, sequence, /)\n"
@@ -815,6 +830,7 @@ static PyTypeObject Trie_Type = {
     .tp_dealloc = (destructor)Trie_Dealloc,
     .tp_new = Trie__new__,
     .tp_methods = Trie_methods,
+    .tp_getset = Trie_properties,
 };
 
 
