@@ -538,7 +538,6 @@ Trie_Dealloc(Trie *self) {
 
 static PyObject *
 Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-<<<<<<< HEAD
     PyObject *alphabet = NULL;
     char *keywords[] = {"alphabet", NULL};
     const char *format = "|O!:Trie.__new__";
