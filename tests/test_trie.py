@@ -35,3 +35,37 @@ def test_trie_subseq():
     assert trie.contains_sequence("GATTA")
     assert trie.contains_sequence("GATTACA")
     assert not trie.contains_sequence("GATTAC")
+
+
+def test_trie_pop_cluster():
+    trie = Trie()
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAC")
+    trie.add_sequence("AAGC")
+    trie.add_sequence("AGGC")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("TTCA")
+    trie.add_sequence("TTCC")
+    trie.add_sequence("TTTA")
+    trie.add_sequence("TTT")
+    trie.add_sequence("TTC")
+    cluster_list = []
+    while True:
+        try:
+            cluster = trie.pop_cluster(1)
+        except LookupError:
+            break
+        cluster_list.append(cluster)
+    cluster_set = [set(cluster) for cluster in cluster_list]
+    expected_clusters = [
+        {(2, "AAAA"), (1, "AAGC"), (1, "AAAC"), (1, "AGGC")},
+        {(2, "CCCG")},
+        {(1, "TTCA"), (1, "TTCC"), (1, "TTTA")},
+        {(1, "TTT"), (1, "TTC")},  # Hamming distance only for equal size.
+    ]
+    for expected_cluster in expected_clusters:
+        assert expected_cluster in cluster_set
+        cluster_set.remove(expected_cluster)
+    assert not cluster_set

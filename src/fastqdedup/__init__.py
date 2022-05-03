@@ -17,7 +17,7 @@
 import argparse
 import contextlib
 import functools
-from typing import List, Iterable, Iterator, Optional, Tuple
+from typing import Any, IO, Iterable, Iterator, List, Optional, Tuple
 
 import dnaio
 
@@ -31,7 +31,7 @@ DEFAULT_MAX_DISTANCE = 1
 
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
-    with dnaio.open(filename, mode="r", opener=opener) as fastqreader:
+    with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
         yield from fastqreader
 
 
@@ -43,14 +43,16 @@ def _key_from_records(records: Iterable[dnaio.SequenceRecord],
     length.
     """
     if check_lengths:
-        return "".join(record.sequence[:length] for record, length in zip(records, check_lengths))
+        return "".join(record.sequence[:length]
+                       for record, length
+                       in zip(records, check_lengths))
     return "".join(record.sequence for record in records)
 
 
-def deduplicate(input_files: List[str],
-                output_files: List[str],
-                check_lengths: Optional[List[int]],
-                max_distance: int = DEFAULT_MAX_DISTANCE):
+def deduplicate_naive(input_files: List[str],
+                      output_files: List[str],
+                      check_lengths: Optional[List[int]],
+                      max_distance: int = DEFAULT_MAX_DISTANCE):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
                          f"must be equal to the amount of input files "
@@ -63,17 +65,62 @@ def deduplicate(input_files: List[str],
     output_stack = contextlib.ExitStack()
     output_opener = functools.partial(xopen.xopen, mode="wb",
                                       compresslevel=1, threads=0)
-    output_files: List[xopen.PipedCompressionWriter] = [
+    outputs: List[IO[Any]] = [
         output_stack.enter_context(output_opener(x)) for x in output_files]
     trie = Trie()
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
         if not trie.contains_sequence(key, max_distance):
-            for record, output in zip(records, output_files):
+            for record, output in zip(records, outputs):
                 output.write(record.fastq_bytes())
         # Always add sequence to the trie. This way clusters use only the first
         # read that showed up.
         trie.add_sequence(key)
+
+
+def deduplicate_cluster(input_files: List[str],
+                        output_files: List[str],
+                        check_lengths: Optional[List[int]],
+                        max_distance: int = DEFAULT_MAX_DISTANCE):
+    if len(input_files) != len(output_files):
+        raise ValueError(f"Amount of output files ({len(output_files)}) "
+                         f"must be equal to the amount of input files "
+                         f"({len(input_files)}). ")
+    if check_lengths and len(input_files) != len(check_lengths):
+        raise ValueError(f"Amount of check lengths ({len(check_lengths)}) "
+                         f"must be equal to the amount of input files "
+                         f"({len(input_files)}). ")
+    input_readers = [file_to_fastq_reader(f) for f in input_files]
+    trie = Trie()
+    for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
+        key = _key_from_records(records, check_lengths)
+        trie.add_sequence(key)
+    deduplicated_set = set()
+    while True:
+        try:
+            cluster = trie.pop_cluster(max_distance)
+        except LookupError:
+            break
+        if len(cluster) > 1:
+            cluster.sort()
+        count, key = cluster[0]
+        # Hash the key first before storing in the set to save memory.
+        deduplicated_set.add(hash(key))
+    del(trie)
+    # Read the fastq files again and filter against the deduplicated set
+    input_readers = [file_to_fastq_reader(f) for f in input_files]
+    output_stack = contextlib.ExitStack()
+    output_opener = functools.partial(xopen.xopen, mode="wb",
+                                      compresslevel=1, threads=0)
+    outputs: List[IO[Any]] = [
+        output_stack.enter_context(output_opener(x)) for x in output_files]
+    for records in zip(*input_readers):
+        key = _key_from_records(records, check_lengths)
+        h = hash(key)
+        if h in deduplicated_set:
+            deduplicated_set.remove(h)
+            for record, output in zip(records, outputs):
+                output.write(record.fastq_bytes())
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -118,7 +165,7 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
-    deduplicate(input_files, output_files, check_lengths, max_distance)
+    deduplicate_cluster(input_files, output_files, check_lengths, max_distance)
 
 
 if __name__ == "__main__":
