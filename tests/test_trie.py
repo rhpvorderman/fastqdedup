@@ -82,3 +82,14 @@ def test_trie_alphabet_repeated():
     with pytest.raises(ValueError) as error:
         Trie(alphabet="abcc")
     error.match("c was repeated")
+
+
+def test_trie_alphabet_during_adding():
+    trie = Trie()
+    trie.add_sequence("abc")
+    # No alphabet yet. The above simply creates a terminal node
+    trie.add_sequence("badabccdaafacb")
+    # The trie now has two branches one with a and one with b.
+    assert trie.alphabet == "ab"
+    trie.add_sequence("bcadac")
+    assert trie.alphabet == "abc"
