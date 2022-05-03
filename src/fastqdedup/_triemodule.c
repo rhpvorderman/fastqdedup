@@ -193,65 +193,65 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
                      uint32_t sequence_size, 
                      uint32_t sequence_count,
                      Alphabet *alphabet) {
-    TrieNode * this_node = trie_node_address[0];
-    if (this_node == NULL) {
-        trie_node_address[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
-        return 0;
-    }
-    if (TrieNode_IS_TERMINAL(this_node)) {
-        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
-        if (sequence_size == suffix_size) {
-            if (memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
-                this_node->count += sequence_count;
-                return 0;
+    while (1) {
+        TrieNode * this_node = trie_node_address[0];
+        if (this_node == NULL) {
+            trie_node_address[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
+            return 0;
+        }
+        if (TrieNode_IS_TERMINAL(this_node)) {
+            uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
+            if (sequence_size == suffix_size) {
+                if (memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
+                    this_node->count += sequence_count;
+                    return 0;
+                }
+            }
+            // Store the suffix in a temporary space and add  it to this node.
+            uint8_t * suffix = TrieNode_GET_SUFFIX(this_node);
+            uint8_t * tmp = PyMem_Malloc(suffix_size);
+            if (tmp == NULL) {
+                PyErr_NoMemory();
+                return -1;
+            }
+            memcpy(tmp, suffix, suffix_size);
+            this_node->alphabet_size = 0;
+            uint32_t count = this_node->count;
+            this_node->count = 0;
+            int ret = TrieNode_AddSequence(
+                trie_node_address, tmp, suffix_size, count, alphabet);
+            this_node = trie_node_address[0];
+            PyMem_Free(tmp);
+            if (ret != 0){
+                return ret;
             }
         }
-        // Store the suffix in a temporary space and add  it to this node.
-        uint8_t * suffix = TrieNode_GET_SUFFIX(this_node);
-        uint8_t * tmp = PyMem_Malloc(suffix_size);
-        if (tmp == NULL) {
-            PyErr_NoMemory();
-            return -1;
+        if (sequence_size == 0) {
+            this_node->count += sequence_count;
+            return 0;
         }
-        memcpy(tmp, suffix, suffix_size);
-        this_node->alphabet_size = 0;
-        uint32_t count = this_node->count;
-        this_node->count = 0;
-        int ret = TrieNode_AddSequence(
-            trie_node_address, tmp, suffix_size, count, alphabet);
-        this_node = trie_node_address[0];
-        PyMem_Free(tmp);
-        if (ret != 0){
-            return ret;
-        }
-    }
-    if (sequence_size == 0) {
-        this_node->count += sequence_count;
-        return 0;
-    }
 
-    uint8_t character = sequence[0];
-    uint8_t node_index = alphabet->to_index[character];
-    if (node_index == 255) { // Letter not present in the alphabet. Add it.
-        node_index = alphabet->size;
-        alphabet->to_index[character] = node_index;
-        alphabet->from_index[node_index] = character;
-        alphabet->size = node_index + 1;
-    }
-
-    if (node_index >= this_node->alphabet_size) {
-        TrieNode * new_node = TrieNode_Resize(this_node, node_index + 1);
-        if (new_node == NULL) {
-            return -1;
+        uint8_t character = sequence[0];
+        uint8_t node_index = alphabet->to_index[character];
+        if (node_index == 255) { // Letter not present in the alphabet. Add it.
+            node_index = alphabet->size;
+            alphabet->to_index[character] = node_index;
+            alphabet->from_index[node_index] = character;
+            alphabet->size = node_index + 1;
         }
-        this_node = new_node;
-        trie_node_address[0] = this_node;
+
+        if (node_index >= this_node->alphabet_size) {
+            TrieNode * new_node = TrieNode_Resize(this_node, alphabet);
+            if (new_node == NULL) {
+                return -1;
+            }
+            this_node = new_node;
+            trie_node_address[0] = this_node;
+        }
+        trie_node_address = (TrieNode **)&(this_node->children[node_index]);
+        sequence += 1;
+        sequence_size -= 1;
     }
-    return TrieNode_AddSequence((TrieNode **)&(this_node->children[node_index]), 
-                                 sequence + 1, 
-                                 sequence_size - 1, 
-                                 sequence_count,
-                                 alphabet);
 }
 
 /**
