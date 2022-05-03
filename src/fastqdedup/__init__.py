@@ -17,7 +17,7 @@
 import argparse
 import contextlib
 import functools
-from typing import List, Iterable, Iterator, Optional, Tuple
+from typing import Any, IO, Iterable, Iterator, List, Optional, Tuple
 
 import dnaio
 
@@ -31,7 +31,7 @@ DEFAULT_MAX_DISTANCE = 1
 
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
-    with dnaio.open(filename, mode="r", opener=opener) as fastqreader:
+    with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
         yield from fastqreader
 
 
@@ -43,7 +43,9 @@ def _key_from_records(records: Iterable[dnaio.SequenceRecord],
     length.
     """
     if check_lengths:
-        return "".join(record.sequence[:length] for record, length in zip(records, check_lengths))
+        return "".join(record.sequence[:length]
+                       for record, length
+                       in zip(records, check_lengths))
     return "".join(record.sequence for record in records)
 
 
@@ -63,13 +65,13 @@ def deduplicate_naive(input_files: List[str],
     output_stack = contextlib.ExitStack()
     output_opener = functools.partial(xopen.xopen, mode="wb",
                                       compresslevel=1, threads=0)
-    output_files: List[xopen.PipedCompressionWriter] = [
+    outputs: List[IO[Any]] = [
         output_stack.enter_context(output_opener(x)) for x in output_files]
     trie = Trie()
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
         if not trie.contains_sequence(key, max_distance):
-            for record, output in zip(records, output_files):
+            for record, output in zip(records, outputs):
                 output.write(record.fastq_bytes())
         # Always add sequence to the trie. This way clusters use only the first
         # read that showed up.
@@ -110,14 +112,14 @@ def deduplicate_cluster(input_files: List[str],
     output_stack = contextlib.ExitStack()
     output_opener = functools.partial(xopen.xopen, mode="wb",
                                       compresslevel=1, threads=0)
-    output_files: List[xopen.PipedCompressionWriter] = [
+    outputs: List[IO[Any]] = [
         output_stack.enter_context(output_opener(x)) for x in output_files]
-    for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
+    for records in zip(*input_readers):
         key = _key_from_records(records, check_lengths)
         h = hash(key)
         if h in deduplicated_set:
             deduplicated_set.remove(h)
-            for record, output in zip(records, output_files):
+            for record, output in zip(records, outputs):
                 output.write(record.fastq_bytes())
 
 
