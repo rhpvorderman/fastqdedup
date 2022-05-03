@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#define TRIE_NODE_ALPHABET_MAX_SIZE 254
+
 /**
  * @brief Simple struct to store an alphabet and conversion operations. 
  * 
@@ -28,11 +30,41 @@
  * size stores the alphabet size.
  * */
 typedef struct {
-    uint8_t to_index[256];
     uint8_t from_index[256];
+    uint8_t to_index[256];
     uint8_t size;
 } Alphabet;
 
+static int 
+Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
+    memset(alphabet->from_index, 0, 256);
+    memset(alphabet->to_index, 255, 256);
+    alphabet->size = 0;
+    uint8_t c;
+    uint8_t current_to_index; 
+    while (1) {
+        if (alphabet->size > TRIE_NODE_ALPHABET_MAX_SIZE) {
+            PyErr_SetString(PyExc_ValueError, "Maximum alphabet length exceeded");
+            return -1;
+        }
+        c = string[0];
+        if (c == 0) {
+            return 0;
+        }
+        current_to_index = alphabet->to_index[c];
+        if (current_to_index != 255) {
+            PyErr_Format(PyExc_ValueError,
+                "Alphabet should consist of unique characters." 
+                "Character %c was repeated. ",
+                c);
+            return -1;
+        }
+        alphabet->to_index[c] = alphabet->size;
+        alphabet->from_index[alphabet->size] = c;
+        alphabet->size += 1;
+    }
+
+}
 
 /**
  * @brief A node in a trie.
@@ -73,7 +105,6 @@ typedef struct {
 #define TRIE_NODE_TERMINAL_FLAG     0x80000000
 #define TRIE_NODE_SUFFIX_SIZE_MASK  0x7FFFFFFF
 #define TRIE_NODE_SUFFIX_MAX_SIZE   0x7FFFFFFF
-#define TRIE_NODE_ALPHABET_MAX_SIZE 254
 #define TrieNode_IS_TERMINAL(n) (n->alphabet_size & TRIE_NODE_TERMINAL_FLAG)
 #define TrieNode_GET_SUFFIX_SIZE(n) (assert (TrieNode_IS_TERMINAL(n)), \
     n->alphabet_size & TRIE_NODE_SUFFIX_SIZE_MASK)
@@ -507,16 +538,25 @@ Trie_Dealloc(Trie *self) {
 
 static PyObject *
 Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
-    char *keywords[] = {NULL};
-    const char *format = "|:Trie.__new__";
+<<<<<<< HEAD
+    PyObject *alphabet = NULL;
+    char *keywords[] = {"alphabet", NULL};
+    const char *format = "|O!:Trie.__new__";
     if (!PyArg_ParseTupleAndKeywords(
-            args, kwargs, format, keywords)) {
+            args, kwargs, format, keywords,
+            &PyUnicode_Type, &alphabet)) {
         return NULL;
     }
+    uint8_t *alphabet_string = "";
+    if (alphabet != NULL) {
+        if (!PyUnicode_IS_COMPACT_ASCII(alphabet)) {
+            PyErr_SetString(PyExc_ValueError, "Alphabet should be an ASCII string.");
+            return NULL;
+        }
+        alphabet_string = PyUnicode_1BYTE_DATA(alphabet);
+    }
     Trie *self = PyObject_New(Trie, type);
-    self->alphabet.size = 0;
-    memset(self->alphabet.to_index, 255, 256);
-    memset(self->alphabet.from_index, 0, 256);
+    Alphabet_InitializeFromString(&self->alphabet, alphabet_string);
     self->root = NULL;
     self->number_of_sequences = 0;
     self->max_sequence_size = 0;
