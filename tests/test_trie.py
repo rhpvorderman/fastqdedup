@@ -16,6 +16,8 @@
 
 from fastqdedup import Trie
 
+import pytest
+
 
 def test_trie_one_seq():
     trie = Trie()
@@ -69,3 +71,25 @@ def test_trie_pop_cluster():
         assert expected_cluster in cluster_set
         cluster_set.remove(expected_cluster)
     assert not cluster_set
+
+
+def test_trie_new_with_alphabet():
+    trie = Trie(alphabet="acd")
+    assert trie.alphabet == "acd"
+
+
+def test_trie_alphabet_repeated():
+    with pytest.raises(ValueError) as error:
+        Trie(alphabet="abcc")
+    error.match("c was repeated")
+
+
+def test_trie_alphabet_during_adding():
+    trie = Trie()
+    trie.add_sequence("abc")
+    # No alphabet yet. The above simply creates a terminal node
+    trie.add_sequence("badabccdaafacb")
+    # The trie now has two branches one with a and one with b.
+    assert trie.alphabet == "ab"
+    trie.add_sequence("bcadac")
+    assert trie.alphabet == "abc"
