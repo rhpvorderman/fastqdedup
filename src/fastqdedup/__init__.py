@@ -49,9 +49,9 @@ def trie_stats(trie: Trie) -> str:
         for j in range(layer_size):
             all_totals[j] += layer_stats[j]
         all_totals[layer_size] += total
-        line = [str(i)] + layer_stats + [total]
+        line = [str(i)] + layer_stats + [total]  # type: ignore
         outbuffer.write("".join(f"{i:10}" for i in line) + "\n")
-    last_line = ["total"] + all_totals
+    last_line = ["total"] + all_totals  # type: ignore
     outbuffer.write("".join(f"{i:10}" for i in last_line) + "\n")
     node_memory_usage = sum((8 + 8 * i) * all_totals[i] for i in range(layer_size))
     total_memory_usage = trie.memory_size()
