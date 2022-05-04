@@ -885,7 +885,7 @@ PyDoc_STRVAR(Trie_raw_stats__doc__,
 "Returns a list of above lists.");
 
 #define TRIE_RAW_STATS_METHODDEF    \
-    {"_raw_stats", (PyCFunction)(void(*)(void))Trie_raw_stats, METH_NOARGS, \
+    {"raw_stats", (PyCFunction)(void(*)(void))Trie_raw_stats, METH_NOARGS, \
      Trie_raw_stats__doc__}
 
 static PyObject *
