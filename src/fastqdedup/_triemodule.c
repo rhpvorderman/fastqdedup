@@ -518,6 +518,27 @@ TrieNode_GetSequence(
     return -1;
 }
 
+static size_t 
+TrieNode_GetMemorySize(TrieNode *trie_node) {
+    if (trie_node == NULL) {
+        return 0;
+    }
+    size_t size = sizeof(TrieNode);  // Basic size
+    // Calculate size allocated to children member
+    if (TrieNode_IS_TERMINAL(trie_node)) {
+        return size + TrieNode_GET_SUFFIX_SIZE(trie_node);
+    }
+    size += (sizeof(TrieNode *) * trie_node->alphabet_size);
+
+    // Calculate size of children
+    TrieNode *child;
+    for (uint32_t i=0; i<trie_node->alphabet_size; i+=1) {
+        child = TrieNode_GET_CHILD(trie_node, i);
+        size += TrieNode_GetMemorySize(child);
+    }
+    return size;
+}
+
 
 typedef struct {
     PyObject_HEAD
@@ -814,11 +835,27 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     return cluster;
 }
 
+PyDoc_STRVAR(Trie_memory_size__doc__,
+"memory_size($self)\n"
+"--\n"
+"\n"
+"Traverse the trie to get the memory size.\n");
+
+#define TRIE_MEMORY_SIZE_METHODDEF    \
+    {"memory_size", (PyCFunction)(void(*)(void))Trie_memory_size, METH_NOARGS, \
+     Trie_memory_size__doc__}
+
+static PyObject *
+Trie_memory_size(Trie *self, PyObject *Py_UNUSED(ignore)) {
+    size_t memory_size = TrieNode_GetMemorySize(self->root);
+    return PyLong_FromSize_t(memory_size);
+}
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
     TRIE_CONTAINS_SEQUENCE_METHODDEF,
     TRIE_POP_CLUSTER_METHODDEF,
+    TRIE_MEMORY_SIZE_METHODDEF,
     {NULL}
 };
 
