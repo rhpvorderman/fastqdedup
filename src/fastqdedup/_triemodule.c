@@ -294,9 +294,9 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
  * @param sequence the sequence to remove
  * @param sequence_size the size of the sequence
  * @param alphabet the alphabet.
- * @return ssize_t the number of removed sequences or -1 for error.
+ * @return uint32_t the number of removed sequences or 0 if not found.
  */
-static ssize_t
+static uint32_t
 TrieNode_DeleteSequence(
     TrieNode **trie_node_address,
     uint8_t *sequence,
@@ -308,10 +308,10 @@ TrieNode_DeleteSequence(
     if (TrieNode_IS_TERMINAL(this_node)) {
         uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
         if (!(sequence_size == suffix_size)) {
-            return -1;
+            return 0;
         }
         if (!memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
-            return -1;
+            return 0;
         }
         count = this_node->count;
         PyMem_Free(this_node);
@@ -321,9 +321,6 @@ TrieNode_DeleteSequence(
 
     if (sequence_size == 0) {
         uint32_t count = this_node->count;
-        if (count == 0) {
-            return -1;
-        }
         this_node->count = 0;
         return count;
     }
@@ -331,23 +328,20 @@ TrieNode_DeleteSequence(
     uint8_t character = sequence[0];
     uint8_t node_index = alphabet->to_index[character];
     if (node_index == 255) {
-        return -1;
+        return 0;
     }
 
-    if (node_index >= this_node->alphabet_size) {
-       return -1;
-    }
     TrieNode *next_node = TrieNode_GetChild(this_node, node_index);
     if (next_node == NULL) {
-        return -1;
+        return 0;
     }
-    ssize_t ret = TrieNode_DeleteSequence(
+    uint32_t ret = TrieNode_DeleteSequence(
         (TrieNode **)&(this_node->children[node_index]), 
         sequence + 1, sequence_size - 1, alphabet);
     
     // Make sure the tree is properly pruned so there are no dead-end nodes
     // that will mess up the search algorithms. 
-    if (ret > -1) {
+    if (ret) {
         for (size_t i=0; i < this_node->alphabet_size; i+=1) {
             if (TrieNode_GET_CHILD(this_node, i) != NULL) {
                 return ret;
@@ -797,9 +791,9 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     // trie.
     uint8_t *template_sequence = PyUnicode_DATA(first_sequence_obj);
     uint32_t template_size = sequence_size;
-    ssize_t template_count = TrieNode_DeleteSequence(&(self->root), 
+    uint32_t template_count = TrieNode_DeleteSequence(&(self->root), 
                               template_sequence, template_size, &(self->alphabet));
-    if (template_count == -1) {
+    if (!template_count) {
         PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
         Py_DECREF(first_sequence_obj);
         return NULL;
@@ -832,7 +826,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyObject *template;
     PyObject *sequence;
     ssize_t sequence_count;
-    ssize_t deleted_count;
+    uint32_t deleted_count;
     while ((cluster_index != cluster_size) && (self->root != NULL)) {
         template_tup = PyList_GET_ITEM(cluster, cluster_index);
         template = PyTuple_GET_ITEM(template_tup, 1);
@@ -845,7 +839,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
             memcpy(PyUnicode_DATA(sequence), buffer, template_size);
             deleted_count = TrieNode_DeleteSequence(&(self->root), buffer,
                                           template_size, &(self->alphabet));
-            if (deleted_count == -1) {
+            if (!deleted_count) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 Py_DECREF(sequence);
                 Py_DECREF(cluster);
