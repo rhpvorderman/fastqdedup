@@ -112,7 +112,7 @@ def deduplicate_cluster(input_files: List[str],
                          f"must be equal to the amount of input files "
                          f"({len(input_files)}). ")
     input_readers = [file_to_fastq_reader(f) for f in input_files]
-    trie = Trie()
+    trie = Trie(alphabet="ACGTN")
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
         trie.add_sequence(key)
