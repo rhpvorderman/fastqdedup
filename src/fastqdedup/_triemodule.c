@@ -555,15 +555,15 @@ Trie__new__(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         alphabet_string = PyUnicode_1BYTE_DATA(alphabet);
     }
     Trie *self = PyObject_New(Trie, type);
-    if (Alphabet_InitializeFromString(&self->alphabet, alphabet_string) != 0) {
-        Py_DECREF(self);
-        return NULL;
-    }
     self->root = NULL;
     self->number_of_sequences = 0;
     self->max_sequence_size = 0;
     self->sequence_buffer = NULL;
     self->sequence_buffer_size = 0;
+    if (Alphabet_InitializeFromString(&self->alphabet, alphabet_string) != 0) {
+        Py_DECREF(self);
+        return NULL;
+    }
     return (PyObject *)self;
 }
 
