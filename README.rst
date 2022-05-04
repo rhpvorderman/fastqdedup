@@ -4,13 +4,19 @@ fastqdedup
 Fastqdedup deduplicates FASTQ files with UMI data while taking sequencing
 errors into account.
 
-Fastqdedup reads a FASTQ file sequentially and stores the sequence of each
-FASTQ record. If a sequence is seen before within the specified Hamming
-distance the sequence is discarded.
-
 Fastqdedup can operate on one or multiple FASTQ files. So single reads with
 prepended UMIs, paired reads with prepended UMIs or paired reads with separate
 UMI file are all possible.
+
+It executes the following steps:
+
++ Read all sequences
++ Determine clusters based on hamming distance
++ Take the most frequently read sequence from each cluster. Put these in a set.
++ Read all sequence records again from the FASTQ files. Check against the set.
+  If a sequence is present the sequence record is output to the output FASTQ
+  files and the sequence is removed from the set so that it is not included
+  again.
 
 Installation
 ------------
@@ -22,9 +28,9 @@ Usage
 -----
 
 Since all the sequences are stored in memory the memory usage is between
-approximately 45-70% of the size of the original FASTQ file depending on
-read length. The memory usage can be substantially reduced by setting
-``--check-lengths``.
+approximately 45-110% of the size of the original uncompressed FASTQ files
+depending on read length and similarities between reads.
+The memory usage can be substantially reduced by setting ``--check-lengths``.
 
 .. code-block::
 
@@ -74,8 +80,8 @@ Fastqdedup utilizes the following optimizations.
    of nodes that only link one parent to one child for quite a long length.
    Fastqdedup stores terminating branches as strings rather than nodes, saving
    a lot of memory.
-2. Variable size nodes. The alphabet is determined while reading in the data.
-   The characters get assigned an index in order of appearance. Nodes are sized
+2. Variable size nodes. The trie is initialized with an ``ACGTN`` alphabet, where
+   ``A`` has index ``0``, ``C`` has index ``1`` etc. Nodes are sized
    such that they can contain the character with the highest index that is in
    the node.
 3. Fast fail Hamming distances. Since the most likely result is that the
