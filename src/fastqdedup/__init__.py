@@ -53,6 +53,13 @@ def trie_stats(trie: Trie) -> str:
         outbuffer.write("".join(f"{i:10}" for i in line) + "\n")
     last_line = ["total"] + all_totals
     outbuffer.write("".join(f"{i:10}" for i in last_line) + "\n")
+    node_memory_usage = sum((8 + 8 * i) * all_totals[i] for i in range(layer_size))
+    total_memory_usage = trie.memory_size()
+    suffix_memory_usage = total_memory_usage - node_memory_usage
+    gb = 1024 ** 3
+    outbuffer.write(f"Node memory usage: {node_memory_usage / gb:.2} GiB\n"
+                    f"Suffix memory usage: {suffix_memory_usage / gb:.2} GiB\n"
+                    f"Total memory usage: {total_memory_usage / gb:.2} GiB\n")
     return outbuffer.getvalue()
 
 
