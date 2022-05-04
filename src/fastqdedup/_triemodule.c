@@ -115,13 +115,12 @@ typedef struct {
 
 /**
  * @brief Get the child of parent for a given index. Always return NULL when
- *        child is node present or the node is terminal.
+ *        child is node present. Should run on a non-terminal node. 
+ *        NOT CHECKED.
  */
 static inline TrieNode *
 TrieNode_GetChild(TrieNode *parent, size_t index) {
-    if TrieNode_IS_TERMINAL(parent){
-        return NULL;
-    }
+    assert(!TrieNode_IS_TERMINAL(parent));
     if (index >= parent->alphabet_size) {
         return NULL;
     }
