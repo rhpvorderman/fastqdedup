@@ -891,14 +891,17 @@ PyDoc_STRVAR(Trie_raw_stats__doc__,
 static PyObject *
 Trie_raw_stats(Trie *self, PyObject *Py_UNUSED(ignore)) {
     size_t layer_size = self->alphabet.size + 1;
-    size_t *stats = PyMem_Malloc(self->max_sequence_size * layer_size);
+    size_t stats_size = self->max_sequence_size * layer_size;
+    size_t *stats = PyMem_Calloc(stats_size, sizeof(size_t));
     if (stats == NULL) {
         return PyErr_NoMemory();
     }
+    
     TrieNode_GetStats(self->root, 0, self->alphabet.size, stats);
 
     PyObject *return_val = PyList_New(self->max_sequence_size);
     if (return_val == NULL) {
+        PyMem_Free(stats);
         return PyErr_NoMemory();
     }
 
@@ -909,6 +912,7 @@ Trie_raw_stats(Trie *self, PyObject *Py_UNUSED(ignore)) {
         layer_stats = stats + layer_size * i;
         if (layer_list == NULL) {
             Py_DECREF(return_val);
+            PyMem_Free(stats);
             return PyErr_NoMemory();
         }
         for (size_t j=0; j<layer_size; j+=1) {
@@ -916,6 +920,7 @@ Trie_raw_stats(Trie *self, PyObject *Py_UNUSED(ignore)) {
         }
         PyList_SET_ITEM(return_val, i, layer_list);
     }
+    PyMem_Free(stats);
     return return_val;
 }
 
