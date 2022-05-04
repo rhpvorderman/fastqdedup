@@ -95,11 +95,8 @@ def deduplicate_cluster(input_files: List[str],
         key = _key_from_records(records, check_lengths)
         trie.add_sequence(key)
     deduplicated_set = set()
-    while True:
-        try:
-            cluster = trie.pop_cluster(max_distance)
-        except LookupError:
-            break
+    while trie.number_of_sequences:
+        cluster = trie.pop_cluster(max_distance)
         if len(cluster) > 1:
             # Reverse sort so read with highest count is first.
             cluster.sort(reverse=True)
