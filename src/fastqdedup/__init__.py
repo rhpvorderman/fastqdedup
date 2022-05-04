@@ -17,6 +17,7 @@
 import argparse
 import contextlib
 import functools
+import io
 from typing import Any, IO, Iterable, Iterator, List, Optional, Tuple
 
 import dnaio
@@ -33,6 +34,27 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
     with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
         yield from fastqreader
+
+
+def trie_stats(trie: Trie) -> str:
+    outbuffer = io.StringIO()
+    raw_stats = trie.raw_stats()
+    print("Got raw stats")
+    layer_size = len(trie.alphabet) + 1
+    all_totals = [0 for _ in range(layer_size + 1)]
+    outbuffer.write("layer     terminal  " +
+                    "".join(f"{i:10}" for i in range(1, layer_size)) +
+                    "     total\n")
+    for i, layer_stats in enumerate(raw_stats):
+        total = sum(layer_stats)
+        for j in range(layer_size):
+            all_totals[j] += layer_stats[j]
+        all_totals[layer_size] += total
+        line = [str(i)] + layer_stats + [total]
+        outbuffer.write("".join(f"{i:10}" for i in line) + "\n")
+    last_line = ["total"] + all_totals
+    outbuffer.write("".join(f"{i:10}" for i in last_line) + "\n")
+    return outbuffer.getvalue()
 
 
 def _key_from_records(records: Iterable[dnaio.SequenceRecord],
