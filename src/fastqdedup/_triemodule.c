@@ -617,9 +617,16 @@ Trie_get_alphabet(Trie *self, void *closure) {
                                    self->alphabet.size, NULL);
 }
 
+static PyObject *
+Trie_get_number_of_sequences(Trie *self, void *closure) {
+    return PyLong_FromSsize_t(self->number_of_sequences);
+}
+
 static PyGetSetDef Trie_properties[] = {
     {"alphabet", (getter)Trie_get_alphabet, NULL, NULL, 
-    "The alphabet this node uses."},
+    "The alphabet this trie uses."},
+    {"number_of_sequences", (getter)Trie_get_number_of_sequences, NULL, NULL, 
+     "The number of sequences stored in the trie."},
     {NULL}
 };
 
@@ -797,6 +804,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         Py_DECREF(first_sequence_obj);
         return NULL;
     }
+    self->number_of_sequences -= template_count;
     // Initiate a cluster from the obtained sequence.
     PyObject *cluster = PyList_New(1);
     PyObject *tup = PyTuple_New(2);
@@ -824,7 +832,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyObject *template;
     PyObject *sequence;
     ssize_t sequence_count;
-    ssize_t ret;
+    ssize_t deleted_count;
     while ((cluster_index != cluster_size) && (self->root != NULL)) {
         template_tup = PyList_GET_ITEM(cluster, cluster_index);
         template = PyTuple_GET_ITEM(template_tup, 1);
@@ -835,14 +843,15 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         if (sequence_count) {
             sequence = PyUnicode_New(sequence_size, 127);
             memcpy(PyUnicode_DATA(sequence), buffer, template_size);
-            ret = TrieNode_DeleteSequence(&(self->root), buffer,
+            deleted_count = TrieNode_DeleteSequence(&(self->root), buffer,
                                           template_size, &(self->alphabet));
-            if (ret == -1) {
+            if (deleted_count == -1) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 Py_DECREF(sequence);
                 Py_DECREF(cluster);
                 return NULL;
             }
+            self->number_of_sequences -= deleted_count;
             tup = PyTuple_New(2);
             PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(sequence_count));
             PyTuple_SET_ITEM(tup, 1, sequence);
