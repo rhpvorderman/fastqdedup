@@ -93,3 +93,17 @@ def test_trie_alphabet_during_adding():
     assert trie.alphabet == "ab"
     trie.add_sequence("bcadac")
     assert trie.alphabet == "abc"
+
+
+def test_trie_number_of_sequences():
+    trie = Trie()
+    trie.add_sequence("abc")
+    trie.add_sequence("ab")
+    trie.add_sequence("abcd")
+    assert trie.number_of_sequences == 3
+    while True:
+        try:
+            trie.pop_cluster(0)
+        except LookupError:
+            break
+    assert trie.number_of_sequences == 0
