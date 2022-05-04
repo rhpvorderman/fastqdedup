@@ -17,6 +17,7 @@
 import argparse
 import contextlib
 import functools
+import io
 from typing import Any, IO, Iterable, Iterator, List, Optional, Tuple
 
 import dnaio
@@ -33,6 +34,33 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
     with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
         yield from fastqreader
+
+
+def trie_stats(trie: Trie) -> str:
+    outbuffer = io.StringIO()
+    raw_stats = trie.raw_stats()
+    layer_size = len(trie.alphabet) + 1
+    all_totals = [0 for _ in range(layer_size + 1)]
+    outbuffer.write("layer     terminal  " +
+                    "".join(f"{i:10}" for i in range(1, layer_size)) +
+                    "     total\n")
+    for i, layer_stats in enumerate(raw_stats):
+        total = sum(layer_stats)
+        for j in range(layer_size):
+            all_totals[j] += layer_stats[j]
+        all_totals[layer_size] += total
+        line = [str(i)] + layer_stats + [total]  # type: ignore
+        outbuffer.write("".join(f"{i:10}" for i in line) + "\n")
+    last_line = ["total"] + all_totals  # type: ignore
+    outbuffer.write("".join(f"{i:10}" for i in last_line) + "\n")
+    node_memory_usage = sum((8 + 8 * i) * all_totals[i] for i in range(layer_size))
+    total_memory_usage = trie.memory_size()
+    suffix_memory_usage = total_memory_usage - node_memory_usage
+    gb = 1024 ** 3
+    outbuffer.write(f"Node memory usage: {node_memory_usage / gb:.2} GiB\n"
+                    f"Suffix memory usage: {suffix_memory_usage / gb:.2} GiB\n"
+                    f"Total memory usage: {total_memory_usage / gb:.2} GiB\n")
+    return outbuffer.getvalue()
 
 
 def _key_from_records(records: Iterable[dnaio.SequenceRecord],
@@ -91,7 +119,7 @@ def deduplicate_cluster(input_files: List[str],
                          f"must be equal to the amount of input files "
                          f"({len(input_files)}). ")
     input_readers = [file_to_fastq_reader(f) for f in input_files]
-    trie = Trie()
+    trie = Trie(alphabet="ACGTN")
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
         key = _key_from_records(records, check_lengths)
         trie.add_sequence(key)

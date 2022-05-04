@@ -518,6 +518,50 @@ TrieNode_GetSequence(
     return -1;
 }
 
+static size_t 
+TrieNode_GetMemorySize(TrieNode *trie_node) {
+    if (trie_node == NULL) {
+        return 0;
+    }
+    size_t size = sizeof(TrieNode);  // Basic size
+    // Calculate size allocated to children member
+    if (TrieNode_IS_TERMINAL(trie_node)) {
+        return size + TrieNode_GET_SUFFIX_SIZE(trie_node);
+    }
+    size += (sizeof(TrieNode *) * trie_node->alphabet_size);
+
+    // Calculate size of children
+    TrieNode *child;
+    for (uint32_t i=0; i<trie_node->alphabet_size; i+=1) {
+        child = TrieNode_GET_CHILD(trie_node, i);
+        size += TrieNode_GetMemorySize(child);
+    }
+    return size;
+}
+
+static void
+TrieNode_GetStats(TrieNode *trie_node,
+                  size_t layer,
+                  size_t alphabet_size,
+                  size_t *stats) {
+    if (trie_node == NULL) {
+        return;
+    }
+    size_t *layer_stats = stats + (alphabet_size + 1) * layer;
+    if (TrieNode_IS_TERMINAL(trie_node)) {
+        // Store terminal nodes at index 0
+        layer_stats[0] += 1;
+        return;
+    }
+    layer_stats[trie_node->alphabet_size] += 1;
+    for (size_t i=0; i<trie_node->alphabet_size; i+=1) {
+        TrieNode_GetStats(TrieNode_GET_CHILD(trie_node, i),
+                          layer + 1,
+                          alphabet_size,
+                          stats);
+    }
+    return;
+}
 
 typedef struct {
     PyObject_HEAD
@@ -814,11 +858,79 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     return cluster;
 }
 
+PyDoc_STRVAR(Trie_memory_size__doc__,
+"memory_size($self)\n"
+"--\n"
+"\n"
+"Traverse the trie to get the memory size.\n");
+
+#define TRIE_MEMORY_SIZE_METHODDEF    \
+    {"memory_size", (PyCFunction)(void(*)(void))Trie_memory_size, METH_NOARGS, \
+     Trie_memory_size__doc__}
+
+static PyObject *
+Trie_memory_size(Trie *self, PyObject *Py_UNUSED(ignore)) {
+    size_t memory_size = TrieNode_GetMemorySize(self->root);
+    return PyLong_FromSize_t(memory_size);
+}
+
+
+PyDoc_STRVAR(Trie_raw_stats__doc__,
+"raw_stats($self)\n"
+"--\n"
+"\n"
+"Traverse the trie and for each layer create a list with \n"
+"at index 0 the amount of terminal nodes. At the other indexes the amount of\n"
+"nodes for index alphabet size\n."
+"Returns a list of above lists.");
+
+#define TRIE_RAW_STATS_METHODDEF    \
+    {"raw_stats", (PyCFunction)(void(*)(void))Trie_raw_stats, METH_NOARGS, \
+     Trie_raw_stats__doc__}
+
+static PyObject *
+Trie_raw_stats(Trie *self, PyObject *Py_UNUSED(ignore)) {
+    size_t layer_size = self->alphabet.size + 1;
+    size_t number_of_layers = self->max_sequence_size + 1;
+    size_t stats_size = number_of_layers * layer_size;
+    size_t *stats = PyMem_Calloc(stats_size, sizeof(size_t));
+    if (stats == NULL) {
+        return PyErr_NoMemory();
+    }
+    
+    TrieNode_GetStats(self->root, 0, self->alphabet.size, stats);
+
+    PyObject *return_val = PyList_New(number_of_layers);
+    if (return_val == NULL) {
+        PyMem_Free(stats);
+        return PyErr_NoMemory();
+    }
+
+    PyObject *layer_list;
+    size_t *layer_stats;
+    for (size_t i=0; i<(number_of_layers); i+=1) {
+        layer_list = PyList_New(layer_size);
+        layer_stats = stats + layer_size * i;
+        if (layer_list == NULL) {
+            Py_DECREF(return_val);
+            PyMem_Free(stats);
+            return PyErr_NoMemory();
+        }
+        for (size_t j=0; j<layer_size; j+=1) {
+            PyList_SET_ITEM(layer_list, j, PyLong_FromSize_t(layer_stats[j]));
+        }
+        PyList_SET_ITEM(return_val, i, layer_list);
+    }
+    PyMem_Free(stats);
+    return return_val;
+}
 
 static PyMethodDef Trie_methods[] = {
     TRIE_ADD_SEQUENCE_METHODDEF,
     TRIE_CONTAINS_SEQUENCE_METHODDEF,
     TRIE_POP_CLUSTER_METHODDEF,
+    TRIE_MEMORY_SIZE_METHODDEF,
+    TRIE_RAW_STATS_METHODDEF,
     {NULL}
 };
 
