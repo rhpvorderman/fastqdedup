@@ -77,35 +77,6 @@ def _key_from_records(records: Iterable[dnaio.SequenceRecord],
     return "".join(record.sequence for record in records)
 
 
-def deduplicate_naive(input_files: List[str],
-                      output_files: List[str],
-                      check_lengths: Optional[List[int]],
-                      max_distance: int = DEFAULT_MAX_DISTANCE):
-    if len(input_files) != len(output_files):
-        raise ValueError(f"Amount of output files ({len(output_files)}) "
-                         f"must be equal to the amount of input files "
-                         f"({len(input_files)}). ")
-    if check_lengths and len(input_files) != len(check_lengths):
-        raise ValueError(f"Amount of check lengths ({len(check_lengths)}) "
-                         f"must be equal to the amount of input files "
-                         f"({len(input_files)}). ")
-    input_readers = [file_to_fastq_reader(f) for f in input_files]
-    output_stack = contextlib.ExitStack()
-    output_opener = functools.partial(xopen.xopen, mode="wb",
-                                      compresslevel=1, threads=0)
-    outputs: List[IO[Any]] = [
-        output_stack.enter_context(output_opener(x)) for x in output_files]
-    trie = Trie(alphabet="ACGTN")
-    for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
-        key = _key_from_records(records, check_lengths)
-        if not trie.contains_sequence(key, max_distance):
-            for record, output in zip(records, outputs):
-                output.write(record.fastq_bytes())
-        # Always add sequence to the trie. This way clusters use only the first
-        # read that showed up.
-        trie.add_sequence(key)
-
-
 def deduplicate_cluster(input_files: List[str],
                         output_files: List[str],
                         check_lengths: Optional[List[int]],
