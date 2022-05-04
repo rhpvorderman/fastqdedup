@@ -761,7 +761,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
 
     // By making the buffer max_sequence_size we should not run into buffer 
     // overflows.
-    if (self->sequence_buffer_size != self->max_sequence_size) {
+    if (self->sequence_buffer_size < self->max_sequence_size) {
         uint8_t *tmp = PyMem_Realloc(self->sequence_buffer, self->max_sequence_size);
         if (tmp == NULL) {
             return PyErr_NoMemory();
