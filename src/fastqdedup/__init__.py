@@ -39,7 +39,6 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 def trie_stats(trie: Trie) -> str:
     outbuffer = io.StringIO()
     raw_stats = trie.raw_stats()
-    print("Got raw stats")
     layer_size = len(trie.alphabet) + 1
     all_totals = [0 for _ in range(layer_size + 1)]
     outbuffer.write("layer     terminal  " +
