@@ -64,7 +64,7 @@ def trie_stats(trie: Trie) -> str:
 
 
 def keyfunc_from_check_lengths(
-        check_lengths: Optional[Iterable[int]]
+        check_lengths: Iterable[int]
 ) -> Callable[[Iterable[dnaio.SequenceRecord]], str]:
     def keyfunc(records: Iterable[dnaio.SequenceRecord]):
         return "".join(record.sequence[:length]
@@ -154,8 +154,8 @@ def deduplicate_cluster(input_files: List[str],
         deduplicated_set.add(hash(key))
     del(trie)
 
-    # Use the same keyfunc, but hash the result to save space.
-    hashfunc = lambda records: hash(keyfunc(records))
+    def hashfunc(records):
+        return hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
 
