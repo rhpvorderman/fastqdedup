@@ -18,7 +18,7 @@ import argparse
 import contextlib
 import functools
 import io
-from typing import Any, IO, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Callable, IO, Iterable, Iterator, List, Optional, Set, Tuple
 
 import dnaio
 
@@ -75,6 +75,69 @@ def _key_from_records(records: Iterable[dnaio.SequenceRecord],
                        for record, length
                        in zip(records, check_lengths))
     return "".join(record.sequence for record in records)
+
+
+def cluster_keys_hamming(keys: Iterable[str],
+                         max_distance: int = DEFAULT_MAX_DISTANCE,
+                         initial_alphabet: str = "ACGTN",
+                         ) -> Iterator[str]:
+    """
+    Cluster the keys based on hamming distance. Return the most common key
+    per cluster.
+    :param keys: An iterable of keys that need to be clustered.
+    :param max_distance: The maximal hamming distance
+    :param initial_alphabet: The starting alphabet for the trie.
+    :return: An iterator of most common key per cluster
+    """
+    trie = Trie(alphabet=initial_alphabet)
+    for key in keys:
+        trie.add_sequence(key)
+    while trie.number_of_sequences:
+        cluster = trie.pop_cluster(max_distance)
+        cluster.sort(reverse=True)
+        count, key = cluster[0]
+        yield key
+
+
+def fastq_files_to_keys(
+        input_files: List[str],
+        keyfunc: Callable[[Iterable[dnaio.SequenceRecord]], str]
+) -> Iterator[str]:
+    """
+
+    :param input_files:
+    :param keyfunc:
+    :return:
+    """
+    input_readers = [file_to_fastq_reader(f) for f in input_files]
+    for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
+        first_record = records[0]
+        for record in records[1:]:
+            if not first_record.is_mate(record):
+                raise dnaio.FastqFormatError(
+                    f"FASTQ files not in sync: {first_record.name} is not a "
+                    f"mate of {record.name}", None)
+        yield keyfunc(records)
+
+
+def filter_fastq_files_on_set(
+        input_files: List[str],
+        output_files: List[str],
+        filter_set: Set[Any],
+        keyfunc: Callable[[Iterable[dnaio.SequenceRecord]], Any]
+):
+    input_readers = [file_to_fastq_reader(f) for f in input_files]
+    output_stack = contextlib.ExitStack()
+    output_opener = functools.partial(xopen.xopen, mode="wb",
+                                      compresslevel=1, threads=0)
+    output_writers: List[IO[Any]] = [
+        output_stack.enter_context(output_opener(x)) for x in output_files]
+    for records in zip(*input_readers):
+        key = keyfunc(records)
+        if key in filter_set:
+            filter_set.remove(key)
+            for output, record in zip(output_writers, records):
+                output.write(record.fastq_bytes())
 
 
 def deduplicate_cluster(input_files: List[str],
