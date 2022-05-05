@@ -63,13 +63,13 @@ def trie_stats(trie: Trie) -> str:
     return outbuffer.getvalue()
 
 
-def keyfunc_from_check_lengths(
-        check_lengths: Iterable[int]
+def keyfunc_from_check_slices(
+        check_slices: Iterable[slice]
 ) -> Callable[[Iterable[dnaio.SequenceRecord]], str]:
     def keyfunc(records: Iterable[dnaio.SequenceRecord]):
-        return "".join(record.sequence[:length]
-                       for record, length
-                       in zip(records, check_lengths))
+        return "".join(record.sequence[slc]
+                       for record, slc
+                       in zip(records, check_slices))
     return keyfunc
 
 
@@ -116,21 +116,21 @@ def filter_fastq_files_on_set(
 
 def deduplicate_cluster(input_files: List[str],
                         output_files: List[str],
-                        check_lengths: Optional[List[int]],
+                        check_slices: Optional[List[slice]],
                         max_distance: int = DEFAULT_MAX_DISTANCE):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
                          f"must be equal to the amount of input files "
                          f"({len(input_files)}). ")
-    if check_lengths and len(input_files) != len(check_lengths):
-        raise ValueError(f"Amount of check lengths ({len(check_lengths)}) "
+    if check_slices and len(input_files) != len(check_slices):
+        raise ValueError(f"Amount of check lengths ({len(check_slices)}) "
                          f"must be equal to the amount of input files "
                          f"({len(input_files)}). ")
 
     # Create a keyfunc in order to collapse multiple FASTQ records into
     # one key that can be used to determine the clusters.
-    if check_lengths:
-        keyfunc = keyfunc_from_check_lengths(check_lengths)
+    if check_slices:
+        keyfunc = keyfunc_from_check_slices(check_slices)
     else:
         def keyfunc(records: Iterable[dnaio.SequenceRecord]) -> str:
             return "".join(record.sequence for record in records)
@@ -170,9 +170,9 @@ def argument_parser() -> argparse.ArgumentParser:
         "--check-lengths",
         help="Comma-separated string with the maximum string check length of "
              "each file. For example "
-             "``fastqdedup --check-lengths 16,8 R1.fastq R2.fastq`` only "
+             "'fastqdedup --check-lengths 16,8 R1.fastq R2.fastq' only "
              "checks the first 16 bases of R1 and the first 8 bases of R2 for "
-             "duplication.")
+             "duplication. Supports slice notation such as '4:8' or '::8'.")
     parser.add_argument(
         "-o", "--output", action="append", required=False,
         help="Output file (optional), must be specified multiple times for "
@@ -189,20 +189,34 @@ def argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def length_string_to_slices(length_string: str) -> List[slice]:
+    """
+    Converts a comma-separated string of lengths or slices such as 8,8,8 or
+    8:16,8,24:8:-1 to a list of slice objects.
+    """
+    parts = length_string.split(",")
+    slices = []
+    for part in parts:
+        values = [None if (x == "None" or x == "") else int(x)
+                  for x in part.split(":")]
+        slices.append(slice(*values))
+    return slices
+
+
 def main():
     args = argument_parser().parse_args()
     input_files: List[str] = args.fastq
     if args.check_lengths:
-        check_lengths = [int(x) for x in args.check_lengths.split(",")]
+        check_slices = length_string_to_slices(args.check_lengths)
     else:
-        check_lengths = None
+        check_slices = None
     if args.output:
         output_files = args.output
     else:
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
-    deduplicate_cluster(input_files, output_files, check_lengths, max_distance)
+    deduplicate_cluster(input_files, output_files, check_slices, max_distance)
 
 
 if __name__ == "__main__":

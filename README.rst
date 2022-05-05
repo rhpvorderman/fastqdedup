@@ -46,10 +46,11 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
       -h, --help            show this help message and exit
       --check-lengths CHECK_LENGTHS
                             Comma-separated string with the maximum string check
-                            length of each file. For example ``fastqdedup --check-
-                            lengths 16,8 R1.fastq R2.fastq`` only checks the first
+                            length of each file. For example 'fastqdedup --check-
+                            lengths 16,8 R1.fastq R2.fastq' only checks the first
                             16 bases of R1 and the first 8 bases of R2 for
-                            duplication.
+                            duplication. Supports slice notation such as '4:8' or
+                            '::8'.
       -o OUTPUT, --output OUTPUT
                             Output file (optional), must be specified multiple
                             times for multiple input files. For example
