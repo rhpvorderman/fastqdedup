@@ -34,6 +34,18 @@ DEFAULT_PREFIX = "fastqdedup_R"
 DEFAULT_MAX_DISTANCE = 1
 
 
+class Timer:
+    """Simple timer object to reduce timing boilerplate"""
+    def __init__(self):
+        self.start_time = time.time()
+
+    def get_difference(self) -> datetime.timedelta:
+        current_time = time.time()
+        delta = datetime.timedelta(seconds=round(current_time - self.start_time))
+        self.start_time = current_time
+        return delta
+
+
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
     with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
@@ -141,8 +153,9 @@ def deduplicate_cluster(input_files: List[str],
 
     keys = fastq_files_to_keys(input_files, keyfunc)
 
-    start_time = time.time()
+    timer = Timer()
     logger = logging.getLogger("fastqdedup")
+
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
     # Not the keys, but the hash values of the keys are stored in the set.
@@ -150,11 +163,8 @@ def deduplicate_cluster(input_files: List[str],
     trie = Trie(alphabet="ACGTN")
     for key in keys:
         trie.add_sequence(key)
-    trie_completed_time = time.time()
-    trie_timedelta = datetime.timedelta(
-        seconds=round(trie_completed_time - start_time))
     logger.info(f"Read {trie.number_of_sequences} sequences. "
-                f"({trie_timedelta}).")
+                f"({timer.get_difference()})")
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
@@ -164,21 +174,15 @@ def deduplicate_cluster(input_files: List[str],
         count, key = cluster[0]
         deduplicated_set.add(hash(key))
     del(trie)
-    deduplication_completed_time = time.time()
-    deduplication_timedelta = datetime.timedelta(
-        seconds=round(deduplication_completed_time - trie_completed_time))
     logger.info(f"Found {len(deduplicated_set)} clusters. "
-                f"({deduplication_timedelta})")
+                f"({timer.get_difference()})")
 
     def hashfunc(records):
         return hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
-    filtering_completed_time = time.time()
-    filtering_timedelta = datetime.timedelta(
-        seconds=round(filtering_completed_time - deduplication_completed_time))
     logger.info(f"Filtered FASTQ files based on most common read per cluster. "
-                f"({filtering_timedelta}) ")
+                f"({timer.get_difference()}) ")
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -249,16 +253,15 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
-    time_start = time.time()
+    timer = Timer()
     logger.info("Starting fastqdedup")
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
     logger.info(f"Maximum hamming distance: {max_distance}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance)
-    total_timedelta = datetime.timedelta(seconds=round(time.time() - time_start))
     resources = resource.getrusage(resource.RUSAGE_SELF)
-    logger.info(f"Finished. Total time: {total_timedelta}. "
+    logger.info(f"Finished. Total time: {timer.get_difference()}. "
                 f"Memory usage: {resources.ru_maxrss / (1024 ** 2):.2} GiB")
 
 
