@@ -137,14 +137,13 @@ def deduplicate_cluster(input_files: List[str],
 
     keys = fastq_files_to_keys(input_files, keyfunc)
 
-    trie = Trie(alphabet="ACGTN")
-    for key in keys:
-        trie.add_sequence(key)
-
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
     # Not the keys, but the hash values of the keys are stored in the set.
     # This saves a lot of memory.
+    trie = Trie(alphabet="ACGTN")
+    for key in keys:
+        trie.add_sequence(key)
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
@@ -155,8 +154,8 @@ def deduplicate_cluster(input_files: List[str],
         deduplicated_set.add(hash(key))
     del(trie)
 
-    def hashfunc(records: Iterable[dnaio.SequenceRecord]):
-        return hash(keyfunc(records))
+    # Use the same keyfunc, but hash the result to save space.
+    hashfunc = lambda records: hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
 
