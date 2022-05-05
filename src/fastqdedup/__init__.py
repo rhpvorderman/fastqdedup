@@ -16,8 +16,12 @@
 
 import argparse
 import contextlib
+import datetime
 import functools
 import io
+import logging
+import resource
+import time
 from typing import Any, Callable, IO, Iterable, Iterator, List, Optional, Set, Tuple
 
 import dnaio
@@ -28,6 +32,18 @@ from ._trie import Trie
 
 DEFAULT_PREFIX = "fastqdedup_R"
 DEFAULT_MAX_DISTANCE = 1
+
+
+class Timer:
+    """Simple timer object to reduce timing boilerplate"""
+    def __init__(self):
+        self.start_time = time.time()
+
+    def get_difference(self) -> datetime.timedelta:
+        current_time = time.time()
+        delta = datetime.timedelta(seconds=round(current_time - self.start_time))
+        self.start_time = current_time
+        return delta
 
 
 def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
@@ -137,13 +153,23 @@ def deduplicate_cluster(input_files: List[str],
 
     keys = fastq_files_to_keys(input_files, keyfunc)
 
+    timer = Timer()
+    logger = logging.getLogger("fastqdedup")
+
+    trie = Trie(alphabet="ACGTN")
+    for key in keys:
+        trie.add_sequence(key)
+
+    logger.info(f"Read {trie.number_of_sequences} sequences. "
+                f"({timer.get_difference()})")
+    if logger.level <= logging.DEBUG:
+        # Do not perform expensive stats calc when not requested.
+        logger.debug("\n" + trie_stats(trie))
+
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
     # Not the keys, but the hash values of the keys are stored in the set.
     # This saves a lot of memory.
-    trie = Trie(alphabet="ACGTN")
-    for key in keys:
-        trie.add_sequence(key)
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
@@ -153,11 +179,29 @@ def deduplicate_cluster(input_files: List[str],
         count, key = cluster[0]
         deduplicated_set.add(hash(key))
     del(trie)
+    logger.info(f"Found {len(deduplicated_set)} clusters. "
+                f"({timer.get_difference()})")
 
     def hashfunc(records):
         return hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
+    logger.info(f"Filtered FASTQ files based on most common read per cluster. "
+                f"({timer.get_difference()}) ")
+
+
+def initiate_logger(verbose: int = 0, quiet: int = 0):
+    log_level = logging.INFO - 10 * (verbose - quiet)
+    logger = logging.getLogger("fastqdedup")
+    logger.setLevel(log_level)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    formatter = logging.Formatter(
+        "{asctime}:{levelname}:{name}: {message}",
+        datefmt="%m/%d/%Y %I:%M:%S",
+        style="{")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -186,6 +230,10 @@ def argument_parser() -> argparse.ArgumentParser:
                         help="The Hamming distance at which inputs are "
                              f"considered different. "
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
+    parser.add_argument("-v", "--verbose", action="count", default=0,
+                        help="Increase log verbosity.")
+    parser.add_argument("-q", "--quiet", action="count", default=0,
+                        help="Reduce log verbosity.")
     return parser
 
 
@@ -205,6 +253,9 @@ def length_string_to_slices(length_string: str) -> List[slice]:
 
 def main():
     args = argument_parser().parse_args()
+    initiate_logger(args.verbose, args.quiet)
+    logger = logging.getLogger("fastqdedup")
+
     input_files: List[str] = args.fastq
     if args.check_lengths:
         check_slices = length_string_to_slices(args.check_lengths)
@@ -216,7 +267,16 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
+    timer = Timer()
+    logger.info("Starting fastqdedup")
+    logger.info(f"Input files: {', '.join(input_files)}")
+    logger.info(f"Output files: {', '.join(output_files)}")
+    logger.info(f"Check lengths: {args.check_lengths}")
+    logger.info(f"Maximum hamming distance: {max_distance}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance)
+    resources = resource.getrusage(resource.RUSAGE_SELF)
+    logger.info(f"Finished. Total time: {timer.get_difference()}. "
+                f"Memory usage: {resources.ru_maxrss / (1024 ** 2):.2} GiB")
 
 
 if __name__ == "__main__":

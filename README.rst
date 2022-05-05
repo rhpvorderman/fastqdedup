@@ -35,7 +35,7 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
 .. code-block::
 
     usage: fastqdedup [-h] [--check-lengths CHECK_LENGTHS] [-o OUTPUT] [-p PREFIX]
-                      [-d MAX_DISTANCE]
+                      [-d MAX_DISTANCE] [-v] [-q]
                       FASTQ [FASTQ ...]
 
     positional arguments:
@@ -61,6 +61,8 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
       -d MAX_DISTANCE, --max-distance MAX_DISTANCE
                             The Hamming distance at which inputs are considered
                             different. Default: 1.
+      -v, --verbose         Increase log verbosity.
+      -q, --quiet           Reduce log verbosity.
 
 Methodology
 -----------
