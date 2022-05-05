@@ -16,9 +16,12 @@
 
 import argparse
 import contextlib
+import datetime
 import functools
 import io
 import logging
+import resource
+import time
 from typing import Any, Callable, IO, Iterable, Iterator, List, Optional, Set, Tuple
 
 import dnaio
@@ -138,6 +141,8 @@ def deduplicate_cluster(input_files: List[str],
 
     keys = fastq_files_to_keys(input_files, keyfunc)
 
+    start_time = time.time()
+    logger = logging.getLogger("fastqdedup")
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
     # Not the keys, but the hash values of the keys are stored in the set.
@@ -145,6 +150,11 @@ def deduplicate_cluster(input_files: List[str],
     trie = Trie(alphabet="ACGTN")
     for key in keys:
         trie.add_sequence(key)
+    trie_completed_time = time.time()
+    trie_timedelta = datetime.timedelta(
+        seconds=round(trie_completed_time - start_time))
+    logger.info(f"Read {trie.number_of_sequences} sequences. "
+                f"({trie_timedelta}).")
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
@@ -154,11 +164,21 @@ def deduplicate_cluster(input_files: List[str],
         count, key = cluster[0]
         deduplicated_set.add(hash(key))
     del(trie)
+    deduplication_completed_time = time.time()
+    deduplication_timedelta = datetime.timedelta(
+        seconds=round(deduplication_completed_time - trie_completed_time))
+    logger.info(f"Found {len(deduplicated_set)} clusters. "
+                f"({deduplication_timedelta})")
 
     def hashfunc(records):
         return hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
+    filtering_completed_time = time.time()
+    filtering_timedelta = datetime.timedelta(
+        seconds=round(filtering_completed_time - deduplication_completed_time))
+    logger.info(f"Filtered FASTQ files based on most common read per cluster. "
+                f"({filtering_timedelta}) ")
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -229,13 +249,17 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
-
+    time_start = time.time()
     logger.info("Starting fastqdedup")
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
     logger.info(f"Maximum hamming distance: {max_distance}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance)
+    total_timedelta = datetime.timedelta(seconds=round(time.time() - time_start))
+    resources = resource.getrusage(resource.RUSAGE_SELF)
+    logger.info(f"Finished. Total time: {total_timedelta}. "
+                f"Memory usage: {resources.ru_maxrss / (1024 ** 2):.2} GiB")
 
 
 if __name__ == "__main__":
