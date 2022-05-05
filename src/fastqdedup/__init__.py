@@ -185,6 +185,20 @@ def deduplicate_cluster(input_files: List[str],
                 f"({timer.get_difference()}) ")
 
 
+def initiate_logger(verbose: int = 0, quiet: int = 0):
+    log_level = logging.INFO - 10 * (verbose - quiet)
+    logger = logging.getLogger("fastqdedup")
+    logger.setLevel(log_level)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "{asctime}:{levelname}:{name}: {message}",
+        datefmt="%m/%d/%Y %I:%M:%S",
+        style="{")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+
 def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -211,6 +225,8 @@ def argument_parser() -> argparse.ArgumentParser:
                         help="The Hamming distance at which inputs are "
                              f"considered different. "
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
+    parser.add_argument("-q", "--quiet", action="count", default=0,
+                        help="Reduce log verbosity.")
     return parser
 
 
@@ -230,17 +246,8 @@ def length_string_to_slices(length_string: str) -> List[slice]:
 
 def main():
     args = argument_parser().parse_args()
-
+    initiate_logger(0, args.quiet)
     logger = logging.getLogger("fastqdedup")
-    logger.setLevel(logging.INFO)
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter(
-        "{asctime}:{levelname}:{name}: {message}",
-        datefmt="%m/%d/%Y %I:%M:%S",
-        style="{")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
 
     input_files: List[str] = args.fastq
     if args.check_lengths:
