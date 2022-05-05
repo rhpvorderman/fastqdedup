@@ -22,7 +22,8 @@ import pytest
 @pytest.mark.parametrize(["string", "result"], [
     ("5,6,7", [slice(5), slice(6), slice(7)]),
     ("5:8,3,-5:3:-1", [slice(5, 8), slice(3), slice(-5, 3, -1)]),
-    ("None:None:16", [slice(None, None, 16)])
+    ("None:None:16", [slice(None, None, 16)]),
+    ("::16", [slice(None, None, 16)])
 ])
 def test_length_string_to_slices(string, result):
     assert length_string_to_slices(string) == result

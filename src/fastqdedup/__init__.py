@@ -170,9 +170,9 @@ def argument_parser() -> argparse.ArgumentParser:
         "--check-lengths",
         help="Comma-separated string with the maximum string check length of "
              "each file. For example "
-             "``fastqdedup --check-lengths 16,8 R1.fastq R2.fastq`` only "
+             "'fastqdedup --check-lengths 16,8 R1.fastq R2.fastq' only "
              "checks the first 16 bases of R1 and the first 8 bases of R2 for "
-             "duplication.")
+             "duplication. Supports slice notation such as '4:8' or '::8'.")
     parser.add_argument(
         "-o", "--output", action="append", required=False,
         help="Output file (optional), must be specified multiple times for "
@@ -197,7 +197,7 @@ def length_string_to_slices(length_string: str) -> List[slice]:
     parts = length_string.split(",")
     slices = []
     for part in parts:
-        values = [int(x) if x != "None" else None
+        values = [None if (x == "None" or x == "") else int(x)
                   for x in part.split(":")]
         slices.append(slice(*values))
     return slices
