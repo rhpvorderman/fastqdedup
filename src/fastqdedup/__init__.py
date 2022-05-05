@@ -18,6 +18,7 @@ import argparse
 import contextlib
 import functools
 import io
+import logging
 from typing import Any, Callable, IO, Iterable, Iterator, List, Optional, Set, Tuple
 
 import dnaio
@@ -205,6 +206,18 @@ def length_string_to_slices(length_string: str) -> List[slice]:
 
 def main():
     args = argument_parser().parse_args()
+
+    logger = logging.getLogger("fastqdedup")
+    logger.setLevel(logging.INFO)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "{asctime}:{levelname}:{name}: {message}",
+        datefmt="%m/%d/%Y %I:%M:%S",
+        style="{")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
     input_files: List[str] = args.fastq
     if args.check_lengths:
         check_slices = length_string_to_slices(args.check_lengths)
@@ -216,6 +229,12 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
+
+    logger.info("Starting fastqdedup")
+    logger.info(f"Input files: {', '.join(input_files)}")
+    logger.info(f"Output files: {', '.join(output_files)}")
+    logger.info(f"Check lengths: {args.check_lengths}")
+    logger.info(f"Maximum hamming distance: {max_distance}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance)
 
 
