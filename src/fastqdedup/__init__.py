@@ -189,6 +189,20 @@ def argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def length_string_to_slices(length_string: str) -> List[slice]:
+    """
+    Converts a comma-separated string of lengths or slices such as 8,8,8 or
+    8:16,8,24:8:-1 to a list of slice objects.
+    """
+    parts = length_string.split(",")
+    slices = []
+    for part in parts:
+        values = [int(x) if x != "None" else None
+                  for x in part.split(":")]
+        slices.append(slice(*values))
+    return slices
+
+
 def main():
     args = argument_parser().parse_args()
     input_files: List[str] = args.fastq
