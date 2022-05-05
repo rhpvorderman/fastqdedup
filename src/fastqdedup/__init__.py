@@ -156,15 +156,20 @@ def deduplicate_cluster(input_files: List[str],
     timer = Timer()
     logger = logging.getLogger("fastqdedup")
 
+    trie = Trie(alphabet="ACGTN")
+    for key in keys:
+        trie.add_sequence(key)
+
+    logger.info(f"Read {trie.number_of_sequences} sequences. "
+                f"({timer.get_difference()})")
+    if logger.level <= logging.DEBUG:
+        # Do not perform expensive stats calc when not requested.
+        logger.debug("\n" + trie_stats(trie))
+
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
     # Not the keys, but the hash values of the keys are stored in the set.
     # This saves a lot of memory.
-    trie = Trie(alphabet="ACGTN")
-    for key in keys:
-        trie.add_sequence(key)
-    logger.info(f"Read {trie.number_of_sequences} sequences. "
-                f"({timer.get_difference()})")
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
@@ -190,7 +195,7 @@ def initiate_logger(verbose: int = 0, quiet: int = 0):
     logger = logging.getLogger("fastqdedup")
     logger.setLevel(log_level)
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(log_level)
     formatter = logging.Formatter(
         "{asctime}:{levelname}:{name}: {message}",
         datefmt="%m/%d/%Y %I:%M:%S",
@@ -225,6 +230,8 @@ def argument_parser() -> argparse.ArgumentParser:
                         help="The Hamming distance at which inputs are "
                              f"considered different. "
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
+    parser.add_argument("-v", "--verbose", action="count", default=0,
+                        help="Increase log verbosity.")
     parser.add_argument("-q", "--quiet", action="count", default=0,
                         help="Reduce log verbosity.")
     return parser
@@ -246,7 +253,7 @@ def length_string_to_slices(length_string: str) -> List[slice]:
 
 def main():
     args = argument_parser().parse_args()
-    initiate_logger(0, args.quiet)
+    initiate_logger(args.verbose, args.quiet)
     logger = logging.getLogger("fastqdedup")
 
     input_files: List[str] = args.fastq
