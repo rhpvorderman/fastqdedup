@@ -19,6 +19,35 @@
 
 #include <stdint.h>
 
+/**
+ * @brief Calculate if two strings are within the same hamming distance. 
+ * 
+ * 
+ * @param max_distance The maximum hamming distance
+ * @param string1 
+ * @param string2 
+ * @param compare_length The length along which the strings are compared. 
+ *                       Hamming distance is only valid across strings with 
+ *                       the same length.
+ * @return int 
+ */
+static int 
+within_hamming_distance(int max_distance,
+                        const uint8_t *string1,
+                        const uint8_t *string2,
+                        ssize_t compare_length)
+{
+    for (uint32_t i=0; i < compare_length; i++) {
+        if (string1[i] != string2[i]) {
+            max_distance -= 1;
+            if (max_distance < 0) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
 #define TRIE_NODE_ALPHABET_MAX_SIZE 254
 
 /**
@@ -391,13 +420,8 @@ TrieNode_FindNearest(
             return 0;
         }
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
-        for (uint32_t i=0; i < suffix_length; i++) {
-            if (sequence[i] != suffix[i]) {
-                max_distance -= 1;
-                if (max_distance < 0) {
-                    return 0;
-                }
-            }
+        if (!within_hamming_distance(max_distance, sequence, suffix, suffix_length)) {
+            return 0;
         }
         if (buffer) {
             memcpy(buffer, suffix, suffix_length);
