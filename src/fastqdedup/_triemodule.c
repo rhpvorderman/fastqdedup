@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <emmintrin.h>
+
 /**
  * @brief Calculate if two strings are within the same hamming distance. 
  * 
@@ -31,13 +33,48 @@
  *                       the same length.
  * @return int 
  */
+// static int 
+// within_hamming_distance(int max_distance,
+//                         const uint8_t *string1,
+//                         const uint8_t *string2,
+//                         ssize_t compare_length)
+// {
+//     for (uint32_t i=0; i < compare_length; i++) {
+//         if (string1[i] != string2[i]) {
+//             max_distance -= 1;
+//             if (max_distance < 0) {
+//                 return 0;
+//             }
+//         }
+//     }
+//     return 1;
+// }
+
 static int 
 within_hamming_distance(int max_distance,
                         const uint8_t *string1,
                         const uint8_t *string2,
                         ssize_t compare_length)
 {
-    for (uint32_t i=0; i < compare_length; i++) {
+    __m128i string1vec; 
+    __m128i string2vec;
+    __m128i cmp_eq;
+    int cmp_eq_bits;
+    int distance;
+    while (compare_length >= (ssize_t)sizeof(__m128i)) {
+        string1vec = _mm_loadu_si128((const __m128i *)string1);
+        string2vec = _mm_loadu_si128((const __m128i *)string2);
+        cmp_eq = _mm_cmpeq_epi8(string1vec, string2vec);
+        cmp_eq_bits = _mm_movemask_epi8(cmp_eq);
+        distance = sizeof(__m128i) - __builtin_popcount(cmp_eq_bits);
+        max_distance -= distance;
+        if (max_distance < 0) {
+            return 0;
+        }
+        compare_length -= sizeof(__m128i);
+        
+    }
+    for (int i=0; i < compare_length; i++) {
         if (string1[i] != string2[i]) {
             max_distance -= 1;
             if (max_distance < 0) {
