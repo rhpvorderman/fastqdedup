@@ -61,7 +61,8 @@ within_hamming_distance(int max_distance,
     __m128i cmp_eq;
     int cmp_eq_bits;
     int distance;
-    while (compare_length >= (ssize_t)sizeof(__m128i)) {
+    int word_size = sizeof(__m128i);
+    while (compare_length >= word_size) {
         string1vec = _mm_loadu_si128((const __m128i *)string1);
         string2vec = _mm_loadu_si128((const __m128i *)string2);
         cmp_eq = _mm_cmpeq_epi8(string1vec, string2vec);
@@ -71,8 +72,9 @@ within_hamming_distance(int max_distance,
         if (max_distance < 0) {
             return 0;
         }
-        compare_length -= sizeof(__m128i);
-        
+        compare_length -= word_size;
+        string1 += word_size;
+        string2 += word_size;
     }
     for (int i=0; i < compare_length; i++) {
         if (string1[i] != string2[i]) {
