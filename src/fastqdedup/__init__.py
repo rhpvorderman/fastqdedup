@@ -164,7 +164,9 @@ def deduplicate_cluster(input_files: List[str],
                 f"({timer.get_difference()})")
     if logger.level <= logging.DEBUG:
         # Do not perform expensive stats calc when not requested.
-        logger.debug("\n" + trie_stats(trie))
+        stats = trie_stats(trie)
+        logger.debug(f"Calculated stats. ({timer.get_difference()})")
+        logger.debug("\n" + stats)
 
     # Create a deduplicated set by popping of clusters from the trie and
     # selecting the most prevalent read per cluster.
