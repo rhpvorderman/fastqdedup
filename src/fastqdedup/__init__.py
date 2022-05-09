@@ -270,7 +270,6 @@ def main():
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
     timer = Timer()
-    logger.info("Starting fastqdedup")
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
