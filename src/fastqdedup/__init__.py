@@ -57,19 +57,13 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
                                 max_distance: int) -> Iterator[str]:
     cluster.sort(reverse=True)
     while cluster:
-        # pop() gets the last string. Which has the biggest count because we
-        # sorted the cluster.
-        template_count, template_string = cluster[0]
+        # The first read has the highest count since we sorted.
+        _, template_string = cluster[0]
         distinct_list = []
         for item in cluster[1:]:
-            compare_count, compare_string = item
-            if hamming_distance(template_string, compare_string) <= max_distance:
-                # A read that is derived from the same origin cannot have more
-                # PCR duplicates presuming an error occurred during the PCR
-                # duplication process. See the umi-tools paper.
-                if (compare_count * 2 - 1) <= template_count:
-                    continue
-            distinct_list.append(item)
+            _, compare_string = item
+            if hamming_distance(template_string, compare_string) > max_distance:
+                distinct_list.append(item)
         yield template_string
         cluster = distinct_list
 
