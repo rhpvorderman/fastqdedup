@@ -39,7 +39,7 @@ PyDoc_STRVAR(hamming_distance__doc__,
 PyObject *
 hamming_distance(PyObject *module,
                  PyObject *const *args,
-                Py_ssize_t nargs)
+                 Py_ssize_t nargs)
 {
     if (nargs != 2) {
         PyErr_Format(
