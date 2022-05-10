@@ -55,12 +55,12 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 
 def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
                                 max_distance: int) -> Iterator[str]:
-    while cluster:
-        cluster.sort()
-        not_adjacent = []
+    cluster.sort()
+    while True:
         # pop() gets the last string. Which has the biggest count because we
         # sorted the cluster.
         template_count, template_string = cluster.pop()
+        distinct_list = []
         while cluster:
             item = cluster.pop()
             compare_count, compare_string = item
@@ -70,9 +70,13 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
                 # duplication process. See the umi-tools paper.
                 if (compare_count * 2 - 1) <= template_count:
                     continue
-            not_adjacent.append(item)
+            distinct_list.append(item)
         yield template_string
-        cluster = not_adjacent
+        if not distinct_list:
+            break
+        # Items were added from largest to smallest count. Reverse the list so
+        # it is correctly sorted again without needing to call sort().
+        cluster = distinct_list[::-1]
 
 
 def trie_stats(trie: Trie) -> str:
