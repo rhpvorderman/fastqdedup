@@ -58,13 +58,19 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
     while cluster:
         cluster.sort()
         not_adjacent = []
-        # pop() gets the last string. Which has the biggest count of sorted.
-        _, template_string = cluster.pop()
+        # pop() gets the last string. Which has the biggest count because we
+        # sorted the cluster.
+        template_count, template_string = cluster.pop()
         while cluster:
             item = cluster.pop()
-            compare_string = item[1]
-            if hamming_distance(template_string, compare_string) > max_distance:
-                not_adjacent.append(item)
+            compare_count, compare_string = item
+            if hamming_distance(template_string, compare_string) <= max_distance:
+                # A read that is derived from the same origin cannot have more
+                # PCR duplicates presuming an error occurred during the PCR
+                # duplication process. See the umi-tools paper.
+                if (compare_count * 2 - 1) <= template_count:
+                    continue
+            not_adjacent.append(item)
         yield template_string
         cluster = not_adjacent
 
@@ -196,14 +202,14 @@ def deduplicate_cluster(input_files: List[str],
             deduplicated_set.add(hash(key))
 
     del(trie)
-    logger.info(f"Found {len(deduplicated_set)} clusters. "
+    logger.info(f"Found {len(deduplicated_set)} distinct reads. "
                 f"({timer.get_difference()})")
 
     def hashfunc(records):
         return hash(keyfunc(records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
-    logger.info(f"Filtered FASTQ files based on most common read per cluster. "
+    logger.info(f"Filtered FASTQ files based on distinct reads from each cluster. "
                 f"({timer.get_difference()}) ")
 
 
