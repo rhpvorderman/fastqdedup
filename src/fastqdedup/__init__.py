@@ -28,6 +28,7 @@ import dnaio
 
 import xopen
 
+from ._distance import hamming_distance
 from ._trie import Trie
 
 DEFAULT_PREFIX = "fastqdedup_R"
@@ -50,6 +51,22 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
     opener = functools.partial(xopen.xopen, threads=0)
     with dnaio.open(filename, mode="r", opener=opener) as fastqreader:  # type: ignore
         yield from fastqreader
+
+
+def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
+                                max_distance: int) -> Iterator[str]:
+    while cluster:
+        cluster.sort()
+        not_adjacent = []
+        # pop() gets the last string. Which has the biggest count of sorted.
+        _, template_string = cluster.pop()
+        while cluster:
+            item = cluster.pop()
+            compare_string = item[1]
+            if hamming_distance(template_string, compare_string) > max_distance:
+                not_adjacent.append(item)
+        yield template_string
+        cluster = not_adjacent
 
 
 def trie_stats(trie: Trie) -> str:
@@ -175,11 +192,9 @@ def deduplicate_cluster(input_files: List[str],
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
-        if len(cluster) > 1:
-            # Reverse sort so read with highest count is first.
-            cluster.sort(reverse=True)
-        count, key = cluster[0]
-        deduplicated_set.add(hash(key))
+        for key in distinct_reads_from_cluster(cluster, max_distance):
+            deduplicated_set.add(hash(key))
+
     del(trie)
     logger.info(f"Found {len(deduplicated_set)} clusters. "
                 f"({timer.get_difference()})")
