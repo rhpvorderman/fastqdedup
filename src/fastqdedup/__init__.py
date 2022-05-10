@@ -55,14 +55,13 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 
 def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
                                 max_distance: int) -> Iterator[str]:
-    cluster.sort()
-    while True:
+    cluster.sort(reverse=True)
+    while cluster:
         # pop() gets the last string. Which has the biggest count because we
         # sorted the cluster.
-        template_count, template_string = cluster.pop()
+        template_count, template_string = cluster[0]
         distinct_list = []
-        while cluster:
-            item = cluster.pop()
+        for item in cluster[1:]:
             compare_count, compare_string = item
             if hamming_distance(template_string, compare_string) <= max_distance:
                 # A read that is derived from the same origin cannot have more
@@ -72,11 +71,7 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
                     continue
             distinct_list.append(item)
         yield template_string
-        if not distinct_list:
-            break
-        # Items were added from largest to smallest count. Reverse the list so
-        # it is correctly sorted again without needing to call sort().
-        cluster = distinct_list[::-1]
+        cluster = distinct_list
 
 
 def trie_stats(trie: Trie) -> str:
