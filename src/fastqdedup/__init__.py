@@ -76,8 +76,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
             distinct_list = []
             for item in cluster:
                 compare_count, compare_string = item
-                if hamming_distance(template_string, compare_string) <= max_distance:
-                    if (2 * compare_count - 1) <= template_count:
+                if (2 * compare_count - 1) <= template_count:
+                    if hamming_distance(template_string, compare_string) <= max_distance:
                         template_list.append(item)
                         continue
                 distinct_list.append(item)
