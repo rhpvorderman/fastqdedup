@@ -58,14 +58,21 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
     cluster.sort(reverse=True)
     while cluster:
         # The first read has the highest count since we sorted.
-        _, template_string = cluster[0]
+        original_item = cluster[0]
+        _, original_string = original_item
+        template_list = [original_item]
         distinct_list = []
         for item in cluster[1:]:
-            _, compare_string = item
-            if hamming_distance(template_string, compare_string) > max_distance:
+            compare_count, compare_string = item
+            for template_count, template_string in template_list:
+                if hamming_distance(template_string, compare_string) <= max_distance:
+                    if (2 * compare_count - 1) <= template_count:
+                        template_list.append(item)
+                        break
+            else:  # No break
                 distinct_list.append(item)
-        yield template_string
-        cluster = distinct_list
+        yield original_string
+        cluster = distinct_list[:]
 
 
 def trie_stats(trie: Trie) -> str:
