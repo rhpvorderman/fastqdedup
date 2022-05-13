@@ -240,13 +240,16 @@ def deduplicate_cluster(
     # Not the keys, but the hash values of the keys are stored in the set.
     # This saves a lot of memory.
     deduplicated_set: Set[int] = set()
+    number_of_clusters = 0
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
+        number_of_clusters += 1
         for key in cluster_dissection_func(cluster, max_distance):
             deduplicated_set.add(hash(key))
 
     del(trie)
-    logger.info(f"Found {len(deduplicated_set)} distinct reads. "
+    logger.info(f"Found {len(deduplicated_set)} distinct reads "
+                f"in {number_of_clusters} clusters."
                 f"({timer.get_difference()})")
 
     def hashfunc(records):
