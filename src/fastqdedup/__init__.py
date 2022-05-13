@@ -62,13 +62,13 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
     within hamming distance and have a count for which 2n-1 is lower than the
     template count, assume they are derived trough PCR artifact. In that case
     add them to the template chain for testing."""
-    cluster = sorted(cluster, reverse=True)
+    cluster = sorted(cluster)
     while cluster:
-        # The first read has the highest count since we sorted.
-        original_item = cluster.pop(0)
+        # The last read has the highest count since we sorted (ascending order
+        # is default).
+        original_item = cluster.pop()
         _, original_string = original_item
         template_list = [original_item]
-        t_index = 0
         # The following loop compares all entries in the template list to
         # all entries in the cluster.
         # Appending to the list while iterating over it is apparently safe.
@@ -90,6 +90,7 @@ def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
                                      ) -> Iterator[str]:
     """Select the read with the highest count. Only yields 1 read."""
     cluster = sorted(cluster, reverse=True)
+    # We sorted in descending order, so the first read has the highest count.
     _, string = cluster[0]
     yield string
 
@@ -101,6 +102,7 @@ def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
     directly adjacent within max distance and repeat."""
     cluster = sorted(cluster, reverse=True)
     while cluster:
+        # We sorted in descending order, so the first read has the highest count.
         _, template_string = cluster[0]
         distinct_list = []
         for item in cluster[1:]:
