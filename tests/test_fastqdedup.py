@@ -44,6 +44,10 @@ class TestClusterDissection:
         (30, "CTAAA")   # Origin read
     ]
 
+    FUNCTIONS = [cluster_dissection_directional,
+                 cluster_dissection_adjacency,
+                 cluster_dissection_highest_count]
+
     def test_most_reads(self):
         dissected = list(cluster_dissection_highest_count(self.TEST_CLUSTER))
         assert len(dissected) == 1
@@ -59,9 +63,7 @@ class TestClusterDissection:
         assert len(dissected) == 3
         assert dissected == {"AACAA", "AAAAA", "CTAAA"}
 
-    @pytest.mark.parametrize("function", [cluster_dissection_directional,
-                                          cluster_dissection_adjacency,
-                                          cluster_dissection_highest_count])
+    @pytest.mark.parametrize("function", FUNCTIONS)
     def test_no_list_aliasing(self, function):
         cluster = self.TEST_CLUSTER[:]
         old_cluster = cluster[:]
@@ -88,3 +90,8 @@ class TestClusterDissection:
         ]
         dissected = set(cluster_dissection_directional(cluster))
         assert dissected == {"GGGGGG", "AACTTG"}
+
+    @pytest.mark.parametrize("function", FUNCTIONS)
+    def test_all_reads_same_cluster(self, function):
+        cluster = [(7, "AAAA"), (1, "AAAT"), (1, "CAAA")]
+        assert set(function(cluster)) == {"AAAA"}
