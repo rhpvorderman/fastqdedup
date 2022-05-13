@@ -17,7 +17,7 @@
 from fastqdedup import (
     cluster_dissection_adjacency,
     cluster_dissection_directional,
-    cluster_dissection_most_reads,
+    cluster_dissection_highest_count,
     length_string_to_slices,
 )
 
@@ -45,7 +45,7 @@ class TestClusterDissection:
     ]
 
     def test_most_reads(self):
-        dissected = list(cluster_dissection_most_reads(self.TEST_CLUSTER))
+        dissected = list(cluster_dissection_highest_count(self.TEST_CLUSTER))
         assert len(dissected) == 1
         assert dissected[0] == "AAAAA"
 
@@ -61,7 +61,7 @@ class TestClusterDissection:
 
     @pytest.mark.parametrize("function", [cluster_dissection_directional,
                                           cluster_dissection_adjacency,
-                                          cluster_dissection_most_reads])
+                                          cluster_dissection_highest_count])
     def test_no_list_aliasing(self, function):
         cluster = self.TEST_CLUSTER[:]
         old_cluster = cluster[:]

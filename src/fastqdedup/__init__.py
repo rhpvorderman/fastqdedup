@@ -22,7 +22,8 @@ import io
 import logging
 import resource
 import time
-from typing import Any, Callable, IO, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import (Any, Callable, Dict, IO, Iterable, Iterator, List,
+                    Optional, Set, Tuple)
 
 import dnaio
 
@@ -33,6 +34,7 @@ from ._trie import Trie
 
 DEFAULT_PREFIX = "fastqdedup_R"
 DEFAULT_MAX_DISTANCE = 1
+DEFAULT_CLUSTER_DISSECTION="directional"
 
 
 class Timer:
@@ -56,7 +58,10 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 def cluster_dissection_directional(cluster: List[Tuple[int, str]],
                                    max_distance: int = DEFAULT_MAX_DISTANCE
                                    ) -> Iterator[str]:
-    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+    """Take the read with the highest count. Test all other reads, if they are
+    within hamming distance and have a count for which 2n-1 is lower than the
+    template count, assume they are derived trough PCR artifact. In that case
+    add them to the template chain for testing."""
     cluster = sorted(cluster, reverse=True)
     while cluster:
         # The first read has the highest count since we sorted.
@@ -77,10 +82,10 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
         cluster = distinct_list[:]  # Distinct list is already sorted.
 
 
-def cluster_dissection_most_reads(cluster: List[Tuple[int, str]],
-                                  max_distance: int = DEFAULT_MAX_DISTANCE
-                                  ) -> Iterator[str]:
-    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
+                                     max_distance: int = DEFAULT_MAX_DISTANCE
+                                     ) -> Iterator[str]:
+    """Select the read with the highest count. Only yields 1 read."""
     cluster = sorted(cluster, reverse=True)
     _, string = cluster[0]
     yield string
@@ -89,7 +94,8 @@ def cluster_dissection_most_reads(cluster: List[Tuple[int, str]],
 def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
                                  max_distance: int = DEFAULT_MAX_DISTANCE
                                  ) -> Iterator[str]:
-    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+    """Take the read with the highest count, find all the reads are not
+    directly adjacent within max distance and repeat."""
     cluster = sorted(cluster, reverse=True)
     while cluster:
         _, template_string = cluster[0]
@@ -100,6 +106,14 @@ def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
                 distinct_list.append(item)
         yield template_string
         cluster = distinct_list[:]
+
+
+ClusterDissectionFunc = Callable[[List[Tuple[int, str]], int], Iterator[str]]
+CLUSTER_DISSECTION_METHODS: Dict[str, ClusterDissectionFunc] = {
+    "highest_count": cluster_dissection_highest_count,
+    "adjacency": cluster_dissection_adjacency,
+    "directional": cluster_dissection_directional,
+}
 
 
 def trie_stats(trie: Trie) -> str:
@@ -180,10 +194,13 @@ def filter_fastq_files_on_set(
                 output.write(record.fastq_bytes())
 
 
-def deduplicate_cluster(input_files: List[str],
-                        output_files: List[str],
-                        check_slices: Optional[List[slice]],
-                        max_distance: int = DEFAULT_MAX_DISTANCE):
+def deduplicate_cluster(
+    input_files: List[str],
+    output_files: List[str],
+    check_slices: Optional[List[slice]],
+    max_distance: int = DEFAULT_MAX_DISTANCE,
+    cluster_dissection_func: ClusterDissectionFunc = cluster_dissection_directional
+):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
                          f"must be equal to the amount of input files "
@@ -225,7 +242,7 @@ def deduplicate_cluster(input_files: List[str],
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
-        for key in cluster_dissection_directional(cluster, max_distance):
+        for key in cluster_dissection_func(cluster, max_distance):
             deduplicated_set.add(hash(key))
 
     del(trie)
@@ -280,6 +297,19 @@ def argument_parser() -> argparse.ArgumentParser:
                         help="The Hamming distance at which inputs are "
                              f"considered different. "
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
+    parser.add_argument(
+        "-c", "--cluster-dissection-method",
+        choices=CLUSTER_DISSECTION_METHODS.keys(),
+        default=DEFAULT_CLUSTER_DISSECTION,
+        help="How to approach clusters with multiple reads. "
+             "'highest_count' selects only one read, the one with the highest "
+             "count. "
+             "'adjacency' starts from the read with the highest count and "
+             "selects all reads that are within the specified distance. "
+             "The process is repeated for the remaining reads. "
+             "'directional' is similar to adjacency but uses counts to "
+             "determine if an error is a PCR/sequencing artifact or derived "
+             "from a difference in the molecule (default).")
     parser.add_argument("-v", "--verbose", action="count", default=0,
                         help="Increase log verbosity.")
     parser.add_argument("-q", "--quiet", action="count", default=0,
@@ -317,12 +347,16 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
+    cluster_dissection_func = CLUSTER_DISSECTION_METHODS[
+        args.cluster_dissection_method]
     timer = Timer()
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
     logger.info(f"Maximum hamming distance: {max_distance}")
-    deduplicate_cluster(input_files, output_files, check_slices, max_distance)
+    logger.info(f"Cluster dissection method: {args.cluster_dissection_method}")
+    deduplicate_cluster(input_files, output_files, check_slices, max_distance,
+                        cluster_dissection_func)
     resources = resource.getrusage(resource.RUSAGE_SELF)
     logger.info(f"Finished. Total time: {timer.get_difference()}. "
                 f"Memory usage: {resources.ru_maxrss / (1024 ** 2):.2} GiB")
