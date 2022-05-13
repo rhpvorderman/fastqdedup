@@ -76,12 +76,15 @@ class TestClusterDissection:
         # recognize the chain. The below cluster is clearly a single chain
         # of mutation events that is deliberately created to have its order
         # not align with alphabetical order.
+        # A single entry is added to the chain that is part of it, but should
+        # be excluded due to the higher count.
         cluster = [
             (100, "GGGGGG"),
             (1,   "GGGTGG"),
             (1,   "GGGTTG"),
             (1,   "GGCTTG"),
-            (1,   "GACTTG")
+            (1,   "GACTTG"),
+            (2,   "AACTTG")
         ]
         dissected = set(cluster_dissection_directional(cluster))
-        assert dissected == {"GGGGGG"}
+        assert dissected == {"GGGGGG", "AACTTG"}
