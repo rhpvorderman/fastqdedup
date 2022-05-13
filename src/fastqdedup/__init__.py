@@ -54,8 +54,10 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 
 
 def cluster_dissection_directional(cluster: List[Tuple[int, str]],
-                                   max_distance: int) -> Iterator[str]:
-    cluster.sort(reverse=True)
+                                   max_distance: int = DEFAULT_MAX_DISTANCE
+                                   ) -> Iterator[str]:
+    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+    cluster = sorted(cluster, reverse=True)
     while cluster:
         # The first read has the highest count since we sorted.
         original_item = cluster[0]
@@ -76,15 +78,19 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
 
 
 def cluster_dissection_most_reads(cluster: List[Tuple[int, str]],
-                                  max_distance: int) -> Iterator[str]:
-    cluster.sort(reverse=True)
+                                  max_distance: int = DEFAULT_MAX_DISTANCE
+                                  ) -> Iterator[str]:
+    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+    cluster = sorted(cluster, reverse=True)
     _, string = cluster[0]
     yield string
 
 
 def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
-                                 max_distance: int) -> Iterator[str]:
-    cluster.sort(reverse=True)
+                                 max_distance: int = DEFAULT_MAX_DISTANCE
+                                 ) -> Iterator[str]:
+    # Using sorted(cluster, ...) prevents list aliasing, unlike cluster.sort()
+    cluster = sorted(cluster, reverse=True)
     while cluster:
         _, template_string = cluster[0]
         distinct_list = []

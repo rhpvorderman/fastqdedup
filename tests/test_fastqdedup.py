@@ -14,7 +14,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with fastqdedup.  If not, see <https://www.gnu.org/licenses/
 
-from fastqdedup import length_string_to_slices
+from fastqdedup import (
+    cluster_dissection_adjacency,
+    cluster_dissection_directional,
+    cluster_dissection_most_reads,
+    length_string_to_slices,
+)
 
 import pytest
 
@@ -27,3 +32,38 @@ import pytest
 ])
 def test_length_string_to_slices(string, result):
     assert length_string_to_slices(string) == result
+
+
+class TestClusterDissection:
+    TEST_CLUSTER = [
+        (3, "AAAGT"),   # Derived
+        (10, "AAAAT"),  # Derived
+        (50, "AACAA"),  # Origin read
+        (60, "AAAAA"),  # Origin read
+        (10, "CAAAA"),  # Derived
+        (30, "CTAAA")   # Origin read
+    ]
+
+    def test_most_reads(self):
+        dissected = list(cluster_dissection_most_reads(self.TEST_CLUSTER))
+        assert len(dissected) == 1
+        assert dissected[0] == "AAAAA"
+
+    def test_adjacency(self):
+        dissected = set(cluster_dissection_adjacency(self.TEST_CLUSTER))
+        assert len(dissected) == 3
+        assert dissected == {"AAAAA", "CTAAA", "AAAGT"}
+
+    def test_directional(self):
+        dissected = set(cluster_dissection_directional(self.TEST_CLUSTER))
+        assert len(dissected) == 3
+        assert dissected == {"AACAA", "AAAAA", "CTAAA"}
+
+    @pytest.mark.parametrize("function", [cluster_dissection_directional,
+                                          cluster_dissection_adjacency,
+                                          cluster_dissection_most_reads])
+    def test_no_list_aliasing(self, function):
+        cluster = self.TEST_CLUSTER[:]
+        old_cluster = cluster[:]
+        list(function(cluster))
+        assert old_cluster == cluster
