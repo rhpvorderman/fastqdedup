@@ -65,21 +65,23 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
     cluster = sorted(cluster, reverse=True)
     while cluster:
         # The first read has the highest count since we sorted.
-        original_item = cluster[0]
+        original_item = cluster.pop(0)
         _, original_string = original_item
         template_list = [original_item]
-        distinct_list = []
-        for item in cluster[1:]:
-            compare_count, compare_string = item
-            for template_count, template_string in template_list:
+        t_index = 0
+        # The following while loop compares all entries in the template list
+        # No for loop, as we modify the template list.
+        while t_index < len(template_list):
+            template_count, template_string = template_list[t_index]
+            # Copy the cluster, to allow checking all items while removing some.
+            for item in cluster[:]:
+                compare_count, compare_string = item
                 if hamming_distance(template_string, compare_string) <= max_distance:
                     if (2 * compare_count - 1) <= template_count:
                         template_list.append(item)
-                        break
-            else:  # No break
-                distinct_list.append(item)
+                        cluster.remove(item)
+            t_index += 1
         yield original_string
-        cluster = distinct_list[:]  # Distinct list is already sorted.
 
 
 def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
