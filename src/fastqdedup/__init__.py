@@ -69,18 +69,19 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
         _, original_string = original_item
         template_list = [original_item]
         t_index = 0
-        # The following while loop compares all entries in the template list
-        # No for loop, as we modify the template list.
-        while t_index < len(template_list):
-            template_count, template_string = template_list[t_index]
-            # Copy the cluster, to allow checking all items while removing some.
-            for item in cluster[:]:
+        # The following loop compares all entries in the template list to
+        # all entries in the cluster.
+        # Appending to the list while iterating over it is apparently safe.
+        for template_count, template_string in template_list:
+            distinct_list = []
+            for item in cluster:
                 compare_count, compare_string = item
                 if hamming_distance(template_string, compare_string) <= max_distance:
                     if (2 * compare_count - 1) <= template_count:
                         template_list.append(item)
-                        cluster.remove(item)
-            t_index += 1
+                        continue
+                distinct_list.append(item)
+            cluster = distinct_list
         yield original_string
 
 
