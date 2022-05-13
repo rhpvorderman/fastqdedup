@@ -69,11 +69,9 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
         original_item = cluster.pop()
         _, original_string = original_item
         template_list = [original_item]
-        # The following loop compares all entries in the template list to
-        # all entries in the cluster. Entries in the cluster that match to
-        # a template are added to the template list and compared to the
-        # remaining cluster items.
-        # Appending to the list while iterating over it is apparently safe.
+
+        # Appending to the list while iterating over it is safe. Each __next__
+        # call retrieves an updated length value from the list.
         for template_count, template_string in template_list:
             if not cluster:
                 break  # fast exit when nothing to compare
