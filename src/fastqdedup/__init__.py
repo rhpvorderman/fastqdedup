@@ -34,7 +34,7 @@ from ._trie import Trie
 
 DEFAULT_PREFIX = "fastqdedup_R"
 DEFAULT_MAX_DISTANCE = 1
-DEFAULT_CLUSTER_DISSECTION="directional"
+DEFAULT_CLUSTER_DISSECTION = "directional"
 
 
 class Timer:
@@ -81,7 +81,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
             for item in cluster:
                 compare_count, compare_string = item
                 if (2 * compare_count - 1) <= template_count:
-                    if hamming_distance(template_string, compare_string) <= max_distance:
+                    if hamming_distance(template_string, compare_string
+                                        ) <= max_distance:
                         template_list.append(item)
                         continue
                 distinct_list.append(item)
