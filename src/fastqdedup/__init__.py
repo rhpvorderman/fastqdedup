@@ -53,8 +53,8 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
         yield from fastqreader
 
 
-def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
-                                max_distance: int) -> Iterator[str]:
+def cluster_dissection_directional(cluster: List[Tuple[int, str]],
+                                   max_distance: int) -> Iterator[str]:
     cluster.sort(reverse=True)
     while cluster:
         # The first read has the highest count since we sorted.
@@ -72,6 +72,27 @@ def distinct_reads_from_cluster(cluster: List[Tuple[int, str]],
             else:  # No break
                 distinct_list.append(item)
         yield original_string
+        cluster = distinct_list[:]  # Distinct list is already sorted.
+
+
+def cluster_dissection_most_reads(cluster: List[Tuple[int, str]],
+                                  max_distance: int) -> Iterator[str]:
+    cluster.sort(reverse=True)
+    _, string = cluster[0]
+    yield string
+
+
+def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
+                                 max_distance: int) -> Iterator[str]:
+    cluster.sort(reverse=True)
+    while cluster:
+        _, template_string = cluster[0]
+        distinct_list = []
+        for item in cluster[1:]:
+            _, compare_string = item
+            if hamming_distance(template_string, compare_string) > max_distance:
+                distinct_list.append(item)
+        yield template_string
         cluster = distinct_list[:]
 
 
@@ -198,7 +219,7 @@ def deduplicate_cluster(input_files: List[str],
     deduplicated_set: Set[int] = set()
     while trie.number_of_sequences:
         cluster = trie.pop_cluster(max_distance)
-        for key in distinct_reads_from_cluster(cluster, max_distance):
+        for key in cluster_dissection_directional(cluster, max_distance):
             deduplicated_set.add(hash(key))
 
     del(trie)
