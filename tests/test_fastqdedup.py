@@ -67,3 +67,21 @@ class TestClusterDissection:
         old_cluster = cluster[:]
         list(function(cluster))
         assert old_cluster == cluster
+
+    def test_directional_long_chain(self):
+        # The chain has one clear origin read and the others being just one
+        # distance apart while all having a count of one. This way the
+        # alphabetic sorting happens after sorting on count.
+        # An incorrect algorithm will fail to
+        # recognize the chain. The below cluster is clearly a single chain
+        # of mutation events that is deliberately created to have its order
+        # not align with alphabetical order.
+        cluster = [
+            (100, "GGGGGG"),
+            (1,   "GGGTGG"),
+            (1,   "GGGTTG"),
+            (1,   "GGCTTG"),
+            (1,   "GACTTG")
+        ]
+        dissected = set(cluster_dissection_directional(cluster))
+        assert dissected == {"GGGGGG"}
