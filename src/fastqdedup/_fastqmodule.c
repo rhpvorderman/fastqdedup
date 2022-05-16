@@ -17,6 +17,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "score_to_error_rate.h"
 #define MAXIMUM_PHRED_SCORE 126
 
 PyDoc_STRVAR(average_error_rate__doc__, 
