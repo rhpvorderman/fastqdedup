@@ -33,7 +33,7 @@ setup(
     zip_safe=False,
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    package_data={'fastqdedup': ['py.typed', '*.pyi', '*.c']},
+    package_data={'fastqdedup': ['py.typed', '*.pyi', '*.c', "*.h"]},
     license_file="LICENSE",
     url="https://github.com/rhpvorderman/fastqdedup",
     classifiers=[
