@@ -39,7 +39,7 @@ average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs)
 {
     PyObject *phred_scores = NULL;
     uint8_t phred_offset = 33;
-    const char *kwarg_names[] = {"", "phred_offset", NULL};
+    char *kwarg_names[] = {"", "phred_offset", NULL};
     const char *format = "O!|$b=:QualityFilter.__new__";
     if (!PyArg_ParseTupleAndKeywords(
         args, kwargs, format, kwarg_names, 
@@ -59,7 +59,7 @@ average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs)
     uint8_t score;
     uint8_t max_score = MAXIMUM_PHRED_SCORE - phred_offset;
     Py_ssize_t length = PyUnicode_GET_LENGTH(phred_scores);
-    for (Py_ssize_t i; i<length; i+=1) {
+    for (Py_ssize_t i=0; i<length; i+=1) {
         score = scores[i] - phred_offset;
         if (score > max_score) {
             PyErr_Format(
