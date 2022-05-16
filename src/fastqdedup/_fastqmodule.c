@@ -18,82 +18,72 @@
 #include <Python.h>
 
 #define MAXIMUM_PHRED_SCORE 126
-typedef struct {
-    PyObject_HEAD 
-    size_t total;
-    size_t pass;
-    double threshold;
-    uint8_t phred_offset;
-} QualityFilter;
 
-static PyObject *
-QualityFilter_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) 
-{
-    double threshold = 0.0L;
-    uint8_t phred_offset = 33;
-    const char *kwarg_names[] = {"threshold", "phred_offset", NULL};
-    const char *format = "d|$b=:QualityFilter.__new__";
-    if (!PyArg_ParseTupleAndKeywords(
-        args, kwargs, format, kwarg_names, threshold, phred_offset)) {
-            return NULL;
-    }
-    QualityFilter *self = PyObject_New(QualityFilter, type);
-    self->phred_offset = phred_offset;
-    self->threshold = threshold;
-    self->total = 0;
-    self->pass = 0;
-    return self;
-}
-
-PyDoc_STRVAR(QualityFilter_passes_filter__doc__, 
-"passes_filter($self, phred_scores, /)\n"
+PyDoc_STRVAR(average_error_rate__doc__, 
+"average_error_rate($self, phred_scores, /, phred_offset=33)\n"
 "--\n"
 "\n"
-"Check if the \n"
+"Returns the average error rate as a float. \n"
 "\n"
 "  phred_scores\n"
 "    ASCII string with the phred scores.\n"
-"\n"
-"Returns True if the phred_scores pass, false otherwise.\n"
-"\n");
+);
 
-#define HAMMING_DISTANCE_METHODDEF    \
-    {"hamming_distance", (PyCFunction)(void(*)(void))hamming_distance, \
-     METH_O, QualityFilter_passes_filter__doc__}
+#define AVERAGE_ERROR_RATE_METHODDEF    \
+    {"average_error_rate", (PyCFunction)(void(*)(void))average_error_rate, \
+     METH_VARARGS | METH_KEYWORDS, average_error_rate__doc__}
 
 static PyObject *
-QualityFilter_passes_filter(QualityFilter *self, PyObject *phred_scores) 
+average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs) 
 {
-    if (!PyUnicode_CheckExact(phred_scores)) {
-        PyErr_Format(PyExc_TypeError, 
-                        "phred_scores must be of type str, got %s.",
-                        Py_TYPE(phred_scores)->tp_name);
-        return NULL;
+    PyObject *phred_scores = NULL;
+    uint8_t phred_offset = 33;
+    const char *kwarg_names[] = {"", "phred_offset", NULL};
+    const char *format = "O!|$b=:QualityFilter.__new__";
+    if (!PyArg_ParseTupleAndKeywords(
+        args, kwargs, format, kwarg_names, 
+        &PyUnicode_Type, 
+        &phred_scores, 
+        &phred_offset)) {
+            return NULL;
     }
+
     if (!PyUnicode_IS_COMPACT_ASCII(phred_scores)) {
         PyErr_SetString(PyExc_ValueError, 
                         "phred_scores must be ASCII encoded.");
         return NULL;
     }
-    double total_score = 0.0;
+    double total_error_rate = 0.0;
     uint8_t *scores = PyUnicode_DATA(phred_scores);
     uint8_t score;
-    uint8_t phred_offset = self->phred_offset;
+    uint8_t max_score = MAXIMUM_PHRED_SCORE - phred_offset;
     Py_ssize_t length = PyUnicode_GET_LENGTH(phred_scores);
     for (Py_ssize_t i; i<length; i+=1) {
-        score = scores[i];
-        if (score < phred_offset || score > MAXIMUM_PHRED_SCORE ) {
+        score = scores[i] - phred_offset;
+        if (score > max_score) {
+            PyErr_Format(
+                PyExc_ValueError, 
+                "Character %c outside of valid phred range %c-%c", 
+                scores[i], phred_offset, MAXIMUM_PHRED_SCORE);
             return NULL;
         }
+        total_error_rate += SCORE_TO_ERROR_RATE[score];
     }
+    double average_error = total_error_rate / (double)length;
+    return PyFloat_FromDouble(average_error);
 }
+
+static PyMethodDef _fastq_functions[] = {
+    AVERAGE_ERROR_RATE_METHODDEF,
+    {NULL}
+};
 
 static struct PyModuleDef _fastq_module = {
     PyModuleDef_HEAD_INIT,
     "_fastq",   /* name of module */
     NULL, /* module documentation, may be NULL */
     -1,
-    NULL  /* module methods */
+    _fastq_functions  /* module methods */
 };
 
 PyMODINIT_FUNC
