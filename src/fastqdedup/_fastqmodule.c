@@ -17,6 +17,35 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+typedef struct {
+    PyObject_HEAD 
+    size_t total;
+    size_t pass;
+    double threshold;
+    uint8_t phred_offset;
+} QualityFilter;
+
+static PyObject *
+QualityFilter_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) 
+{
+    double threshold = 0.0L;
+    uint8_t phred_offset = 33;
+    const char *kwarg_names[] = {"threshold", "phred_offset", NULL};
+    const char *format = "d|$b=:QualityFilter.__new__";
+    if (!PyArg_ParseTupleAndKeywords(
+        args, kwargs, format, kwarg_names, threshold, phred_offset)) {
+            return NULL;
+    }
+    QualityFilter *self = PyObject_New(QualityFilter, type);
+    self->phred_offset = phred_offset;
+    self->threshold = threshold;
+    self->total = 0;
+    self->pass = 0;
+    return self;
+}
+
+
+
 static struct PyModuleDef _fastq_module = {
     PyModuleDef_HEAD_INIT,
     "_fastq",   /* name of module */
