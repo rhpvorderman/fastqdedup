@@ -51,7 +51,8 @@ setup(
     install_requires=["dnaio >=0.8.0"],
     ext_modules=[
         Extension("fastqdedup._trie", ["src/fastqdedup/_triemodule.c"]),
-        Extension("fastqdedup._distance", ["src/fastqdedup/_distancemodule.c"])
+        Extension("fastqdedup._distance", ["src/fastqdedup/_distancemodule.c"]),
+        Extension("fastqdedup._fastq", ["src/fastqdedup/_fastqmodule.c"]),
     ],
     entry_points={"console_scripts": [
         "fastqdedup = fastqdedup:main"]}
