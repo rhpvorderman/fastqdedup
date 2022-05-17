@@ -40,7 +40,7 @@ average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs)
     PyObject *phred_scores = NULL;
     uint8_t phred_offset = 33;
     char *kwarg_names[] = {"", "phred_offset", NULL};
-    const char *format = "O!|$b=:QualityFilter.__new__";
+    const char *format = "O!|$b:average_error_rate";
     if (!PyArg_ParseTupleAndKeywords(
         args, kwargs, format, kwarg_names, 
         &PyUnicode_Type, 
