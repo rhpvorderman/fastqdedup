@@ -18,7 +18,7 @@
 #include <Python.h>
 
 #include <stdint.h>
-
+#include "distances.h"
 #define TRIE_NODE_ALPHABET_MAX_SIZE 254
 
 /**
@@ -385,20 +385,12 @@ TrieNode_FindNearest(
 {
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
-        if (sequence_length != suffix_length) {
-            // Hamming is technically only valid for sequences with the same
-            // length. 
-            return 0;
-        }
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
-        for (uint32_t i=0; i < suffix_length; i++) {
-            if (sequence[i] != suffix[i]) {
-                max_distance -= 1;
-                if (max_distance < 0) {
-                    return 0;
-                }
-            }
-        }
+        if (!within_hamming_distance(sequence, sequence_length, 
+                                    suffix, suffix_length, 
+                                    max_distance)) {
+                                        return 0;
+                                    }
         if (buffer) {
             memcpy(buffer, suffix, suffix_length);
         }
