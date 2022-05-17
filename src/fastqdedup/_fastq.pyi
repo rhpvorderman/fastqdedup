@@ -14,4 +14,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with fastqdedup.  If not, see <https://www.gnu.org/licenses/
 
-def hamming_distance(__string1: str, __string2: str) -> int: ...
+DEFAULT_PHRED_OFFSET: int 
+
+def average_error_rate(
+    __phred_scores: str, *,
+    phred_offset: int = DEFAULT_PHRED_OFFSET) -> float: ...
