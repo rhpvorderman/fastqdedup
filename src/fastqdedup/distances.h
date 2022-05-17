@@ -7,9 +7,9 @@
 
 static int 
 within_hamming_distance(
-    uint8_t *string1,
+    const uint8_t *string1,
     size_t string1_length,
-    uint8_t *string2,
+    const uint8_t *string2,
     size_t string2_length,
     int max_distance)
 {
@@ -32,9 +32,9 @@ within_hamming_distance(
 
 static int
 within_edit_distance(
-    uint8_t *string1,
+    const uint8_t *string1,
     size_t string1_length,
-    uint8_t *string2,
+    const uint8_t *string2,
     size_t string2_length,
     int max_distance)
 {

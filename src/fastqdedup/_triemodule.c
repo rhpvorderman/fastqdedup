@@ -381,12 +381,20 @@ TrieNode_FindNearest(
     uint32_t sequence_length,
     int max_distance, 
     Alphabet *alphabet, 
-    uint8_t *buffer) 
+    uint8_t *buffer,
+    int use_edit_distance) 
 {
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
-        if (!within_hamming_distance(sequence, sequence_length, 
+        if (use_edit_distance && 
+            !within_edit_distance(sequence, sequence_length, 
+                                  suffix, suffix_length, 
+                                  max_distance)
+                                  ) {
+                                        return 0;
+                                    }
+        else if (!within_hamming_distance(sequence, sequence_length, 
                                     suffix, suffix_length, 
                                     max_distance)) {
                                         return 0;
@@ -396,6 +404,11 @@ TrieNode_FindNearest(
         }
         return trie_node->count;
     }
+    if (use_edit_distance && sequence_length <= (uint32_t)max_distance && trie_node->count) {
+        // We are within edit distance and a sequence exists here. Exit early.    
+        return trie_node->count;       
+    }
+
     if (sequence_length == 0) {
         return trie_node->count;
     }
@@ -415,18 +428,28 @@ TrieNode_FindNearest(
         }
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-            new_buffer);
+            new_buffer, use_edit_distance);
         if (result) {
             return result;
         }
     }
-    // Mismatch, try all children and deduct a point from the max distance.
+    // Mismatch, deduct a point from the max distance.
     max_distance -= 1;
     if (max_distance < 0) {
         return 0;
     }
+    if (use_edit_distance) {
+        // Check if problem can be solved with an insertion.
+        result = TrieNode_FindNearest(
+            trie_node, sequence + 1, sequence_length - 1, max_distance,
+            alphabet, buffer, use_edit_distance);
+        if (result) {
+            return result;
+        }
+    }
+    // Check all children
     for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
-        if (i == node_index){
+        if (i == node_index) {
             continue;  // Already tried this route.
         }
         child = TrieNode_GET_CHILD(trie_node, i);
@@ -438,9 +461,18 @@ TrieNode_FindNearest(
         }
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-            new_buffer);
+            new_buffer, use_edit_distance);
         if (result) {
             return result; 
+        }
+        if (use_edit_distance) {
+            // deletion
+            result = TrieNode_FindNearest(
+                child, sequence, sequence_length, max_distance,
+                alphabet, new_buffer, use_edit_distance);
+            if (result) {
+                return result;
+            }
         }
     }
     // All children searched but could not find anything.
@@ -710,7 +742,7 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
         return NULL;
     }
     ssize_t ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
-                                       &(self->alphabet), NULL);
+                                       &(self->alphabet), NULL, 0);
     return PyBool_FromLong(ret);
 }
 
@@ -824,7 +856,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
         template_sequence = PyUnicode_DATA(template);
         template_size = PyUnicode_GET_LENGTH(template);
         sequence_count = TrieNode_FindNearest(self->root, template_sequence, template_size,
-            max_distance, &(self->alphabet), buffer);
+            max_distance, &(self->alphabet), buffer, 0);
         if (sequence_count) {
             sequence = PyUnicode_New(sequence_size, 127);
             memcpy(PyUnicode_DATA(sequence), buffer, template_size);
