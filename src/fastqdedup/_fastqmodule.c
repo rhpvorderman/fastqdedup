@@ -64,7 +64,7 @@ average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs)
         if (score > max_score) {
             PyErr_Format(
                 PyExc_ValueError, 
-                "Character %c outside of valid phred range %c-%c", 
+                "Character %c outside of valid phred range ('%c' to '%c')",
                 scores[i], phred_offset, MAXIMUM_PHRED_SCORE);
             return NULL;
         }
