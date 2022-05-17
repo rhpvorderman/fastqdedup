@@ -23,4 +23,3 @@ def test_average_error_rate_non_ascii():
     with pytest.raises(ValueError) as error:
         average_error_rate(chr(128))
     error.match("phred_scores must be ASCII encoded")
-

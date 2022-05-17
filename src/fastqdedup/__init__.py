@@ -165,7 +165,7 @@ def joinfunc_from_check_slices(
 
 def fastq_files_to_records(
         input_files: List[str]
-) -> Iterator[Tuple[dnaio.SequenceRecord]]:
+) -> Iterator[Tuple[dnaio.SequenceRecord, ...]]:
     """
 
     :param input_files:
@@ -208,7 +208,7 @@ def deduplicate_cluster(
     output_files: List[str],
     check_slices: Optional[List[slice]],
     max_distance: int = DEFAULT_MAX_DISTANCE,
-    max_average_error_rate = DEFAULT_MAX_AVERAGE_ERROR_RATE,
+    max_average_error_rate: float = DEFAULT_MAX_AVERAGE_ERROR_RATE,
     cluster_dissection_func: ClusterDissectionFunc = cluster_dissection_directional,
 ):
     if len(input_files) != len(output_files):
@@ -236,7 +236,9 @@ def deduplicate_cluster(
     trie = Trie(alphabet="ACGTN")
 
     for record_tuple in record_tuples:
-        qualities = joinfunc(record.qualities for record in record_tuple)
+        qualities = joinfunc(record.qualities
+                             for record in record_tuple
+                             if record.qualities is not None)
         total_records += 1
         if (filter_on_quality and
                 fastq_average_error_rate(qualities) > max_average_error_rate):
