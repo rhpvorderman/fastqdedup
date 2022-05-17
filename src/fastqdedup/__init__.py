@@ -30,11 +30,13 @@ import dnaio
 import xopen
 
 from ._distance import hamming_distance
+from ._fastq import average_error_rate as fastq_average_error_rate
 from ._trie import Trie
 
 DEFAULT_PREFIX = "fastqdedup_R"
 DEFAULT_MAX_DISTANCE = 1
 DEFAULT_CLUSTER_DISSECTION = "directional"
+DEFAULT_MAX_AVERAGE_ERROR_RATE = 0.001
 
 
 class Timer:
@@ -151,20 +153,19 @@ def trie_stats(trie: Trie) -> str:
     return outbuffer.getvalue()
 
 
-def keyfunc_from_check_slices(
+def joinfunc_from_check_slices(
         check_slices: Iterable[slice]
-) -> Callable[[Iterable[dnaio.SequenceRecord]], str]:
-    def keyfunc(records: Iterable[dnaio.SequenceRecord]):
-        return "".join(record.sequence[slc]
-                       for record, slc
-                       in zip(records, check_slices))
-    return keyfunc
+) -> Callable[[Iterable[str]], str]:
+    def joinfunc(strings: Iterable[str]):
+        return "".join(string[slc]
+                       for string, slc
+                       in zip(strings, check_slices))
+    return joinfunc
 
 
-def fastq_files_to_keys(
-        input_files: List[str],
-        keyfunc: Callable[[Iterable[dnaio.SequenceRecord]], str]
-) -> Iterator[str]:
+def fastq_files_to_records(
+        input_files: List[str]
+) -> Iterator[Tuple[dnaio.SequenceRecord]]:
     """
 
     :param input_files:
@@ -179,7 +180,7 @@ def fastq_files_to_keys(
                 raise dnaio.FastqFormatError(
                     f"FASTQ files not in sync: {first_record.name} is not a "
                     f"mate of {record.name}", None)
-        yield keyfunc(records)
+        yield records
 
 
 def filter_fastq_files_on_set(
@@ -207,7 +208,8 @@ def deduplicate_cluster(
     output_files: List[str],
     check_slices: Optional[List[slice]],
     max_distance: int = DEFAULT_MAX_DISTANCE,
-    cluster_dissection_func: ClusterDissectionFunc = cluster_dissection_directional
+    max_average_error_rate = DEFAULT_MAX_AVERAGE_ERROR_RATE,
+    cluster_dissection_func: ClusterDissectionFunc = cluster_dissection_directional,
 ):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
@@ -221,21 +223,33 @@ def deduplicate_cluster(
     # Create a keyfunc in order to collapse multiple FASTQ records into
     # one key that can be used to determine the clusters.
     if check_slices:
-        keyfunc = keyfunc_from_check_slices(check_slices)
+        joinfunc = joinfunc_from_check_slices(check_slices)
     else:
-        def keyfunc(records: Iterable[dnaio.SequenceRecord]) -> str:
-            return "".join(record.sequence for record in records)
+        joinfunc = "".join
 
-    keys = fastq_files_to_keys(input_files, keyfunc)
-
+    record_tuples = fastq_files_to_records(input_files)
+    filter_on_quality = max_average_error_rate < 1.0
+    total_records = 0
+    discarded_records = 0
     timer = Timer()
     logger = logging.getLogger("fastqdedup")
-
     trie = Trie(alphabet="ACGTN")
-    for key in keys:
-        trie.add_sequence(key)
 
-    logger.info(f"Read {trie.number_of_sequences} sequences. "
+    for record_tuple in record_tuples:
+        qualities = joinfunc(record.qualities for record in record_tuple)
+        total_records += 1
+        if (filter_on_quality and
+                fastq_average_error_rate(qualities) > max_average_error_rate):
+            discarded_records += 1
+            continue
+        key = joinfunc(record.sequence for record in record_tuple)
+        trie.add_sequence(key)
+    if filter_on_quality:
+        logger.info(
+            f"{discarded_records} records out of {total_records} "
+            f"records had an error rate higher than {max_average_error_rate} "
+            f"and were discarded.")
+    logger.info(f"Processed {trie.number_of_sequences} sequences. "
                 f"({timer.get_difference()})")
     if logger.level <= logging.DEBUG:
         # Do not perform expensive stats calc when not requested.
@@ -261,7 +275,7 @@ def deduplicate_cluster(
                 f"({timer.get_difference()})")
 
     def hashfunc(records):
-        return hash(keyfunc(records))
+        return hash(joinfunc(record.sequence for record in records))
 
     filter_fastq_files_on_set(input_files, output_files, deduplicated_set, hashfunc)
     logger.info(f"Filtered FASTQ files based on distinct reads from each cluster. "
@@ -308,6 +322,14 @@ def argument_parser() -> argparse.ArgumentParser:
                         help="The Hamming distance at which inputs are "
                              f"considered different. "
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
+    parser.add_argument("-e", "--max-average-error-rate", type=float,
+                        default=DEFAULT_MAX_AVERAGE_ERROR_RATE,
+                        help=f"The maximum per base error rate for each FASTQ "
+                             f"record. "
+                             f"Default: {DEFAULT_MAX_AVERAGE_ERROR_RATE}")
+    parser.add_argument("-E", "--no-average-error-rate-filter",
+                        action="store_const", dest="max_average_error_rate",
+                        const=1.0)
     parser.add_argument(
         "-c", "--cluster-dissection-method",
         choices=CLUSTER_DISSECTION_METHODS.keys(),
@@ -358,6 +380,7 @@ def main():
         output_files = [args.prefix + str(x) + ".fastq.gz"
                         for x in range(1, len(input_files) + 1)]
     max_distance = args.max_distance
+    max_average_error_rate = args.max_average_error_rate
     cluster_dissection_func = CLUSTER_DISSECTION_METHODS[
         args.cluster_dissection_method]
     timer = Timer()
@@ -365,8 +388,10 @@ def main():
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
     logger.info(f"Maximum hamming distance: {max_distance}")
+    logger.info(f"Maximum average error rate: {max_average_error_rate}")
     logger.info(f"Cluster dissection method: {args.cluster_dissection_method}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance,
+                        max_average_error_rate,
                         cluster_dissection_func)
     resources = resource.getrusage(resource.RUSAGE_SELF)
     logger.info(f"Finished. Total time: {timer.get_difference()}. "
