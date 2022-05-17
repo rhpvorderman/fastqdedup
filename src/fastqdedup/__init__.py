@@ -305,7 +305,7 @@ def argument_parser() -> argparse.ArgumentParser:
         help="Forward FASTQ and optional reverse and UMI FASTQ files."
     )
     parser.add_argument(
-        "--check-lengths",
+        "-l", "--check-lengths",
         help="Comma-separated string with the maximum string check length of "
              "each file. For example "
              "'fastqdedup --check-lengths 16,8 R1.fastq R2.fastq' only "
