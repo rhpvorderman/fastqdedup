@@ -19,9 +19,10 @@
 
 #include "score_to_error_rate.h"
 #define MAXIMUM_PHRED_SCORE 126
+#define DEFAULT_PHRED_OFFSET 33
 
 PyDoc_STRVAR(average_error_rate__doc__, 
-"average_error_rate($self, phred_scores, /, phred_offset=33)\n"
+"average_error_rate($self, phred_scores, /, phred_offset=DEFAULT_PHRED_OFFSET)\n"
 "--\n"
 "\n"
 "Returns the average error rate as a float. \n"
@@ -38,7 +39,7 @@ static PyObject *
 average_error_rate(PyObject *module, PyObject *args, PyObject *kwargs) 
 {
     PyObject *phred_scores = NULL;
-    uint8_t phred_offset = 33;
+    uint8_t phred_offset = DEFAULT_PHRED_OFFSET;
     char *kwarg_names[] = {"", "phred_offset", NULL};
     const char *format = "O!|$b:average_error_rate";
     if (!PyArg_ParseTupleAndKeywords(
@@ -96,5 +97,6 @@ PyInit__fastq(void)
     if (m == NULL) {
         return NULL;
     }
+    PyModule_AddIntMacro(m, DEFAULT_PHRED_OFFSET);
     return m;
 }
