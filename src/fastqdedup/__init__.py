@@ -324,12 +324,14 @@ def argument_parser() -> argparse.ArgumentParser:
                              f"Default: {DEFAULT_MAX_DISTANCE}.")
     parser.add_argument("-e", "--max-average-error-rate", type=float,
                         default=DEFAULT_MAX_AVERAGE_ERROR_RATE,
-                        help=f"The maximum per base error rate for each FASTQ "
-                             f"record. "
+                        help=f"The maximum average per base error rate for "
+                             f"each FASTQ record. Average is evaluated over "
+                             f"bases taken into account by --check-lengths."
                              f"Default: {DEFAULT_MAX_AVERAGE_ERROR_RATE}")
     parser.add_argument("-E", "--no-average-error-rate-filter",
                         action="store_const", dest="max_average_error_rate",
-                        const=1.0)
+                        const=1.0,
+                        help="Do not filter on average per base error rate.")
     parser.add_argument(
         "-c", "--cluster-dissection-method",
         choices=CLUSTER_DISSECTION_METHODS.keys(),
