@@ -17,5 +17,5 @@
 DEFAULT_PHRED_OFFSET: int 
 
 def average_error_rate(
-    __phred_scores, *, 
+    phred_scores: str, /, *,
     phred_offset: int = DEFAULT_PHRED_OFFSET) -> float: ...
