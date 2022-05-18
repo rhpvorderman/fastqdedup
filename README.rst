@@ -11,8 +11,11 @@ UMI file are all possible.
 It executes the following steps:
 
 + Read all sequences
-+ Determine clusters based on hamming distance
-+ Take the most frequently read sequence from each cluster. Put these in a set.
++ Filter low quality sequences (can be turned off).
++ Determine clusters based on Hamming distance (or Levenshtein when set).
++ Determine which reads are distinct in each cluster. Put these in a set.
+  This uses the 'directional' method as described in the UMI-tools paper.
+  Several methods are available.
 + Read all sequence records again from the FASTQ files. Check against the set.
   If a sequence is present the sequence record is output to the output FASTQ
   files and the sequence is removed from the set so that it is not included
@@ -106,9 +109,9 @@ Fastqdedup utilizes the following optimizations.
    ``A`` has index ``0``, ``C`` has index ``1`` etc. Nodes are sized
    such that they can contain the character with the highest index that is in
    the node.
-3. Fast fail Hamming distances. Since the most likely result is that the
-   sequence is not seen before, the algorithm gives up as quickly as it finds
-   the Hamming distance will be exceeded.
+3. Fast fail Hamming (or Levenshtein) distances. Since the most likely result
+   is that the sequence is not seen before, the algorithm gives up as quickly
+   as it finds the Hamming distance will be exceeded.
 
 Background
 ----------
