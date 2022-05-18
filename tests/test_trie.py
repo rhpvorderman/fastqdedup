@@ -59,8 +59,10 @@ def test_trie_subseq():
         ("GATTAC", 1, True),
         ("G", 4, True),
         ("GATTAT", 2, True),
-        ("UU", 2, False),
-        ("UUUUU", 3, False)
+        ("UU", 4, False),
+        ("UU", 5, True),
+        ("UUUUU", 3, False),
+        ("ATTAC", 2, True),
     ])
 def test_trie_subseq_edit_distance(sequence, distance, result):
     trie = Trie()

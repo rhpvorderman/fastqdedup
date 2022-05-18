@@ -408,23 +408,31 @@ TrieNode_FindNearest(
         // We are within edit distance and a sequence exists here. Exit early.    
         return 0;       
     }
-
-    if (sequence_length == 0) {
-        if (trie_node->count) {
-            return 0;
-        } else {
-            return -1;
-        }
-    }
-
-    uint8_t character = sequence[0];
-    uint8_t node_index = alphabet->to_index[character];
-    uint8_t *new_buffer = NULL; 
+    uint8_t *new_buffer = NULL;
     if (buffer) {
         new_buffer = buffer + 1;
     }
-    TrieNode *child = TrieNode_GetChild(trie_node, node_index);
     ssize_t result;
+
+    TrieNode *child;
+    uint8_t node_index;
+    uint8_t character;
+    if (sequence_length == 0) {
+        if (trie_node->count) {
+            return 0;
+        } 
+        if (!use_edit_distance) {
+            return -1;
+        }
+        // When edit distance is used, there may be insertions after the
+        // sequence. Make sure all nodes are checked.
+        child = NULL;
+        node_index = 255;
+    } else {
+        character = sequence[0];
+        node_index = alphabet->to_index[character];    
+        child = TrieNode_GetChild(trie_node, node_index);
+    }
     if (child != NULL) {
         // Found a match, continue the computation with the child node.
         if (buffer) {
