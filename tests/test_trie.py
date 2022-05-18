@@ -52,6 +52,18 @@ def test_trie_subseq():
     assert not trie.contains_sequence("GATTAC")
 
 
+def test_trie_subseq_edit_distance():
+    trie = Trie()
+    trie.add_sequence("GATTACA")
+    trie.add_sequence("GATTA")
+    assert trie.contains_sequence("GATTA")
+    assert trie.contains_sequence("GATTACA")
+    assert trie.contains_sequence("GATTAC", max_distance=1, use_edit_distance=True)
+    assert trie.contains_sequence("G", max_distance=4, use_edit_distance=True)
+    assert trie.contains_sequence("GATTAT", max_distance=2, use_edit_distance=True)
+    assert not trie.contains_sequence("UU", max_distance=2, use_edit_distance=True)
+
+
 def test_trie_pop_cluster():
     trie = Trie()
     trie.add_sequence("AAAA")
