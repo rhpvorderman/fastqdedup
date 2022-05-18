@@ -29,7 +29,7 @@ import dnaio
 
 import xopen
 
-from ._distance import hamming_distance
+from ._distance import within_distance
 from ._fastq import average_error_rate as fastq_average_error_rate
 from ._trie import Trie
 
@@ -58,7 +58,8 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 
 
 def cluster_dissection_directional(cluster: List[Tuple[int, str]],
-                                   max_distance: int = DEFAULT_MAX_DISTANCE
+                                   max_distance: int = DEFAULT_MAX_DISTANCE,
+                                   use_edit_distance: bool = False,
                                    ) -> Iterator[str]:
     """Take the read with the highest count. Test all other reads, if they are
     within hamming distance and have a count for which 2n-1 is lower than the
@@ -81,8 +82,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
             for item in cluster:
                 compare_count, compare_string = item
                 if (2 * compare_count - 1) <= template_count:
-                    if hamming_distance(template_string, compare_string
-                                        ) <= max_distance:
+                    if within_distance(template_string, compare_string,
+                                       max_distance, use_edit_distance):
                         template_list.append(item)
                         continue
                 distinct_list.append(item)
@@ -91,7 +92,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
 
 
 def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
-                                     max_distance: int = DEFAULT_MAX_DISTANCE
+                                     max_distance: int = DEFAULT_MAX_DISTANCE,
+                                     use_edit_distance: bool = False,
                                      ) -> Iterator[str]:
     """Select the read with the highest count. Only yields 1 read."""
     cluster = sorted(cluster, reverse=True)
@@ -101,7 +103,8 @@ def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
 
 
 def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
-                                 max_distance: int = DEFAULT_MAX_DISTANCE
+                                 max_distance: int = DEFAULT_MAX_DISTANCE,
+                                 use_edit_distance: bool = False,
                                  ) -> Iterator[str]:
     """Take the read with the highest count, find all the reads are not
     directly adjacent within max distance and repeat."""
@@ -112,7 +115,8 @@ def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
         distinct_list = []
         for item in cluster[1:]:
             _, compare_string = item
-            if hamming_distance(template_string, compare_string) > max_distance:
+            if not within_distance(template_string, compare_string,
+                                   max_distance, use_edit_distance):
                 distinct_list.append(item)
         yield template_string
         cluster = distinct_list[:]
