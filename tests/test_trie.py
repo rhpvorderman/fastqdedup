@@ -43,6 +43,7 @@ def test_trie_one_seq_edit_distance():
     assert trie.contains_sequence("GATTAC", max_distance=1, use_edit_distance=True)
     assert trie.contains_sequence("ATTAC", max_distance=2, use_edit_distance=True)
 
+
 def test_trie_subseq():
     trie = Trie()
     trie.add_sequence("GATTACA")
