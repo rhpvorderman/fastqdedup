@@ -693,19 +693,21 @@ Trie_add_sequence(Trie *self, PyObject *sequence) {
 }
 
 PyDoc_STRVAR(Trie_contains_sequence__doc__,
-"contains_sequence($self, sequence, /, max_hamming_distance=0)\n"
+"contains_sequence($self, sequence, /, max_distance=0, use_edit_distance=False)\n"
 "--\n"
 "\n"
 "Check if a sequence is present in the trie.\n"
 "\n"
 "Optionally check if a similar sequence is present at the specified\n"
-"maximum hamming distance.\n"
+"maximum distance.\n"
 "Sequences with unequal size are considered unequal.\n"
 "\n"
 "  sequence\n"
 "    An ASCII string.\n"
-"  max_hamming_distance\n"
-"    The maximal Hamming distance\n"
+"  max_distance\n"
+"    The maximal distance\n"
+"  use_edit_distance\n"
+"    Use edit (Levensteihn) distance instead of Hamming distance\n"
 "\n");
 
 #define TRIE_CONTAINS_SEQUENCE_METHODDEF    \
@@ -716,16 +718,12 @@ static PyObject *
 Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     PyObject *sequence = NULL;
     int max_distance = 0;
-    char *keywords[] = {"", "max_hamming_distance", NULL};
-    const char *format = "O|i:Trie.contains_sequence";
+    int use_edit_distance;
+    char *keywords[] = {"", "max_distance", "use_edit_distance", NULL};
+    const char *format = "O!|ip:Trie.contains_sequence";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords,
-            &sequence, &max_distance)) {
-        return NULL;
-    }
-    if (!PyUnicode_CheckExact(sequence)) {
-        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s",
-            Py_TYPE(sequence)->tp_name);
+            &PyUnicode_Type, &sequence, &max_distance, &use_edit_distance)) {
         return NULL;
     }
     if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
@@ -742,7 +740,7 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
         return NULL;
     }
     ssize_t ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
-                                       &(self->alphabet), NULL, 0);
+                                       &(self->alphabet), NULL, use_edit_distance);
     return PyBool_FromLong(ret > -1);
 }
 
@@ -777,7 +775,7 @@ Trie_pop_cluster(Trie *self, PyObject *args, PyObject *kwargs)
     }
     if (max_distance < 0) {
         PyErr_SetString(PyExc_ValueError, 
-                        "max_hamming distance should be non-negative");
+                        "max_distance should be non-negative");
         return NULL;
     }
     if (self->root == NULL) {
