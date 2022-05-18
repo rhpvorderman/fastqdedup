@@ -45,7 +45,9 @@ def test_within_distance_hamming(string1, string2, max_distance, result):
         ("AAAA", "AAAC", 1, True),
         ("AAAA", "AAAC", 0, False),
         ("AACA", "AAAC", 2, True),
-        ("AACC", "CCAA", 3, False)
+        ("AACC", "CCAA", 3, False),
+        ("GATTACA", "GATTAA", 1, True),
+        ("GATTACA", "GATTAA", 0, False)
     ]
 )
 def test_within_distance_levenstein(string1, string2, max_distance, result):
