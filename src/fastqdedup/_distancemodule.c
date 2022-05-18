@@ -17,77 +17,84 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-PyDoc_STRVAR(hamming_distance__doc__,
-"hamming_distance($module, string1, string2, /)\n"
+#include "distances.h"
+
+
+PyDoc_STRVAR(within_distance__doc__,
+"within_distance($module, string1, string2, /, max_distance, use_edit_distance=False)\n"
 "--\n"
 "\n"
-"Calculates the hamming distance between two strings.\n"
+"Calculates whether two strings are within the specified distance.\n"
 "\n"
 "  string1\n"
 "    An ASCII string.\n"
 "  string2\n"
 "    Another ASCII string\n"
+"  max_distance\n"
+"     The maximum distance\n"
+"  use_edit_distance\n"
+"    Use edit (Levenshtein) distance instead of Hamming distance"
 "\n"
 "Returns an integer representing the hamming distance.\n"
 "Raises a ValueError when strings are not of the same length.\n"
 "\n");
 
-#define HAMMING_DISTANCE_METHODDEF    \
-    {"hamming_distance", (PyCFunction)(void(*)(void))hamming_distance, METH_FASTCALL, \
-     hamming_distance__doc__}
+#define WITHIN_DISTANCE_METHODDEF    \
+    {"within_distance", (PyCFunction)(void(*)(void))within_distance, \
+    METH_VARARGS | METH_KEYWORDS, within_distance__doc__}
 
 PyObject *
-hamming_distance(PyObject *module,
-                 PyObject *const *args,
-                 Py_ssize_t nargs)
+within_distance(PyObject *module,
+                PyObject *args,
+                PyObject *kwargs)
 {
-    if (nargs != 2) {
-        PyErr_Format(
-            PyExc_TypeError,
-            "hamming distance expects exactly two arguments, got %zd", 
-            nargs);
+    PyObject *string1 = NULL;
+    PyObject *string2 = NULL;
+    int max_distance = 0;
+    int use_edit_distance = 0;
+    char *keywords[] = {"", "", "max_distance", "use_edit_distance", NULL};
+    char *format = "O!O!i|p:within_distance";
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, format, keywords,
+            &PyUnicode_Type, &string1, &PyUnicode_Type, &string2,
+            &max_distance, &use_edit_distance)) {
+                return NULL;
+    }
+
+    if (!(PyUnicode_KIND(string1) == PyUnicode_1BYTE_KIND)) {
+        PyErr_SetString(PyExc_ValueError, 
+                        "string1 must be ASCII or latin-1 encoded.");
         return NULL;
     }
-    Py_ssize_t i;
-    PyObject *arg; 
-    for (i=0; i<2; i+=1) {
-        arg = args[i];
-        if (!PyUnicode_CheckExact(arg)) {
-            PyErr_Format(PyExc_TypeError, 
-                         "string%zd must be of type str, got %s.",
-                         i + 1, Py_TYPE(arg)->tp_name);
-            return NULL;
-        }
-        if (!(PyUnicode_KIND(arg) == PyUnicode_1BYTE_KIND)) {
-            PyErr_Format(PyExc_ValueError, 
-                        "string%zd must be ASCII or latin-1 encoded.", 
-                        i + 1);
-            return NULL;
-        }
+    if (!(PyUnicode_KIND(string2) == PyUnicode_1BYTE_KIND)) {
+        PyErr_SetString(PyExc_ValueError, 
+                        "string2 must be ASCII or latin-1 encoded.");
+        return NULL;
     }
-    PyObject *string1 = args[0];
-    PyObject *string2 = args[1];
+
     uint8_t *string1chars = PyUnicode_1BYTE_DATA(string1);
     uint8_t *string2chars = PyUnicode_1BYTE_DATA(string2);
     Py_ssize_t string1len = PyUnicode_GET_LENGTH(string1);
     Py_ssize_t string2len = PyUnicode_GET_LENGTH(string2);
+    ssize_t ret;
 
-    if (string1len != string2len) {
-        PyErr_SetString(PyExc_ValueError, 
-                        "string1 and string2 must be of the same length");
-        return NULL;
+    if (use_edit_distance) {
+        ret = within_edit_distance(string1chars, string1len,
+                                   string2chars, string2len, 
+                                   max_distance);
+
     }
-    Py_ssize_t hamming_distance = 0;
-    for (i=0; i<string1len; i+=1) {
-        if (string1chars[i] != string2chars[i]) {
-            hamming_distance += 1;
-        }
+    else {
+        ret = within_hamming_distance(string1chars, string1len,
+                                      string2chars, string2len, 
+                                      max_distance);
     }
-    return PyLong_FromSsize_t(hamming_distance);
+    return PyBool_FromLong(ret);
 }
 
+
 static PyMethodDef _distance_functions[] = {
-    HAMMING_DISTANCE_METHODDEF,
+    WITHIN_DISTANCE_METHODDEF,
     {NULL}
 };
 

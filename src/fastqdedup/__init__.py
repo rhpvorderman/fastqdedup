@@ -29,7 +29,7 @@ import dnaio
 
 import xopen
 
-from ._distance import hamming_distance
+from ._distance import within_distance
 from ._fastq import average_error_rate as fastq_average_error_rate
 from ._trie import Trie
 
@@ -58,7 +58,8 @@ def file_to_fastq_reader(filename: str) -> Iterator[dnaio.SequenceRecord]:
 
 
 def cluster_dissection_directional(cluster: List[Tuple[int, str]],
-                                   max_distance: int = DEFAULT_MAX_DISTANCE
+                                   max_distance: int = DEFAULT_MAX_DISTANCE,
+                                   use_edit_distance: bool = False,
                                    ) -> Iterator[str]:
     """Take the read with the highest count. Test all other reads, if they are
     within hamming distance and have a count for which 2n-1 is lower than the
@@ -81,8 +82,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
             for item in cluster:
                 compare_count, compare_string = item
                 if (2 * compare_count - 1) <= template_count:
-                    if hamming_distance(template_string, compare_string
-                                        ) <= max_distance:
+                    if within_distance(template_string, compare_string,
+                                       max_distance, use_edit_distance):
                         template_list.append(item)
                         continue
                 distinct_list.append(item)
@@ -91,7 +92,8 @@ def cluster_dissection_directional(cluster: List[Tuple[int, str]],
 
 
 def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
-                                     max_distance: int = DEFAULT_MAX_DISTANCE
+                                     max_distance: int = DEFAULT_MAX_DISTANCE,
+                                     use_edit_distance: bool = False,
                                      ) -> Iterator[str]:
     """Select the read with the highest count. Only yields 1 read."""
     cluster = sorted(cluster, reverse=True)
@@ -101,7 +103,8 @@ def cluster_dissection_highest_count(cluster: List[Tuple[int, str]],
 
 
 def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
-                                 max_distance: int = DEFAULT_MAX_DISTANCE
+                                 max_distance: int = DEFAULT_MAX_DISTANCE,
+                                 use_edit_distance: bool = False,
                                  ) -> Iterator[str]:
     """Take the read with the highest count, find all the reads are not
     directly adjacent within max distance and repeat."""
@@ -112,13 +115,14 @@ def cluster_dissection_adjacency(cluster: List[Tuple[int, str]],
         distinct_list = []
         for item in cluster[1:]:
             _, compare_string = item
-            if hamming_distance(template_string, compare_string) > max_distance:
+            if not within_distance(template_string, compare_string,
+                                   max_distance, use_edit_distance):
                 distinct_list.append(item)
         yield template_string
         cluster = distinct_list[:]
 
 
-ClusterDissectionFunc = Callable[[List[Tuple[int, str]], int], Iterator[str]]
+ClusterDissectionFunc = Callable[[List[Tuple[int, str]], int, bool], Iterator[str]]
 CLUSTER_DISSECTION_METHODS: Dict[str, ClusterDissectionFunc] = {
     "highest_count": cluster_dissection_highest_count,
     "adjacency": cluster_dissection_adjacency,
@@ -210,6 +214,7 @@ def deduplicate_cluster(
     max_distance: int = DEFAULT_MAX_DISTANCE,
     max_average_error_rate: float = DEFAULT_MAX_AVERAGE_ERROR_RATE,
     cluster_dissection_func: ClusterDissectionFunc = cluster_dissection_directional,
+    use_edit_distance: bool = False,
 ):
     if len(input_files) != len(output_files):
         raise ValueError(f"Amount of output files ({len(output_files)}) "
@@ -266,9 +271,9 @@ def deduplicate_cluster(
     deduplicated_set: Set[int] = set()
     number_of_clusters = 0
     while trie.number_of_sequences:
-        cluster = trie.pop_cluster(max_distance)
+        cluster = trie.pop_cluster(max_distance, use_edit_distance)
         number_of_clusters += 1
-        for key in cluster_dissection_func(cluster, max_distance):
+        for key in cluster_dissection_func(cluster, max_distance, use_edit_distance):
             deduplicated_set.add(hash(key))
 
     del(trie)
@@ -334,6 +339,9 @@ def argument_parser() -> argparse.ArgumentParser:
                         action="store_const", dest="max_average_error_rate",
                         const=1.0,
                         help="Do not filter on average per base error rate.")
+    parser.add_argument("--edit", action="store_true",
+                        help="Use edit (Levenshtein) distance instead of "
+                             "Hamming distance.")
     parser.add_argument(
         "-c", "--cluster-dissection-method",
         choices=CLUSTER_DISSECTION_METHODS.keys(),
@@ -387,16 +395,19 @@ def main():
     max_average_error_rate = args.max_average_error_rate
     cluster_dissection_func = CLUSTER_DISSECTION_METHODS[
         args.cluster_dissection_method]
+    use_edit_distance = args.edit
+    distance_name = "Levenshtein" if use_edit_distance else "Hamming"
     timer = Timer()
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
-    logger.info(f"Maximum hamming distance: {max_distance}")
+    logger.info(f"Maximum {distance_name} distance: {max_distance}")
     logger.info(f"Maximum average error rate: {max_average_error_rate}")
     logger.info(f"Cluster dissection method: {args.cluster_dissection_method}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance,
                         max_average_error_rate,
-                        cluster_dissection_func)
+                        cluster_dissection_func,
+                        use_edit_distance)
     resources = resource.getrusage(resource.RUSAGE_SELF)
     logger.info(f"Finished. Total time: {timer.get_difference()}. "
                 f"Memory usage: {resources.ru_maxrss / (1024 ** 2):.2} GiB")

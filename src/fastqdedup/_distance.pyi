@@ -15,3 +15,7 @@
 # along with fastqdedup.  If not, see <https://www.gnu.org/licenses/
 
 def hamming_distance(__string1: str, __string2: str) -> int: ...
+
+def within_distance(__string1: str, __string2: str,
+                    max_distance: int,
+                    use_edit_distance: bool = False) -> bool: ...

@@ -18,7 +18,7 @@
 #include <Python.h>
 
 #include <stdint.h>
-
+#include "distances.h"
 #define TRIE_NODE_ALPHABET_MAX_SIZE 254
 
 /**
@@ -371,7 +371,7 @@ TrieNode_DeleteSequence(
  * @param buffer a buffer to store the found sequence in. Can be set to NULL 
  *               for no storage. The buffer should have a memory size of 
  *               sequence_length.
- * @return ssize_t the count of the found sequences. If 0 this 
+ * @return ssize_t The size of the sequence. If -1 this 
  *                indicates the sequence was not found.
  */
 static ssize_t
@@ -381,41 +381,58 @@ TrieNode_FindNearest(
     uint32_t sequence_length,
     int max_distance, 
     Alphabet *alphabet, 
-    uint8_t *buffer) 
+    uint8_t *buffer,
+    int use_edit_distance) 
 {
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
-        if (sequence_length != suffix_length) {
-            // Hamming is technically only valid for sequences with the same
-            // length. 
-            return 0;
-        }
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
-        for (uint32_t i=0; i < suffix_length; i++) {
-            if (sequence[i] != suffix[i]) {
-                max_distance -= 1;
-                if (max_distance < 0) {
-                    return 0;
-                }
+        if (use_edit_distance) { 
+            if (!within_edit_distance(sequence, sequence_length, 
+                                  suffix, suffix_length, 
+                                  max_distance)){
+                return -1;
             }
         }
+        else if (!within_hamming_distance(sequence, sequence_length, 
+                                    suffix, suffix_length, 
+                                    max_distance)) {
+                                        return -1;
+                                    }
         if (buffer) {
             memcpy(buffer, suffix, suffix_length);
         }
-        return trie_node->count;
+        return suffix_length;
     }
-    if (sequence_length == 0) {
-        return trie_node->count;
+    if (use_edit_distance && sequence_length <= (uint32_t)max_distance && trie_node->count) {
+        // We are within edit distance and a sequence exists here. Exit early.    
+        return 0;       
     }
-
-    uint8_t character = sequence[0];
-    uint8_t node_index = alphabet->to_index[character];
-    uint8_t *new_buffer = NULL; 
+    uint8_t *new_buffer = NULL;
     if (buffer) {
         new_buffer = buffer + 1;
     }
-    TrieNode *child = TrieNode_GetChild(trie_node, node_index);
     ssize_t result;
+
+    TrieNode *child;
+    uint8_t node_index;
+    uint8_t character;
+    if (sequence_length == 0) {
+        if (trie_node->count) {
+            return 0;
+        } 
+        if (!use_edit_distance) {
+            return -1;
+        }
+        // When edit distance is used, there may be insertions after the
+        // sequence. Make sure all nodes are checked.
+        child = NULL;
+        node_index = 255;
+    } else {
+        character = sequence[0];
+        node_index = alphabet->to_index[character];    
+        child = TrieNode_GetChild(trie_node, node_index);
+    }
     if (child != NULL) {
         // Found a match, continue the computation with the child node.
         if (buffer) {
@@ -423,18 +440,28 @@ TrieNode_FindNearest(
         }
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-            new_buffer);
-        if (result) {
+            new_buffer, use_edit_distance);
+        if (result >= 0) {
+            return 1 + result;
+        }
+    }
+    // Mismatch, deduct a point from the max distance.
+    max_distance -= 1;
+    if (max_distance < 0) {
+        return -1;
+    }
+    if (use_edit_distance) {
+        // Check if problem can be solved with an insertion.
+        result = TrieNode_FindNearest(
+            trie_node, sequence + 1, sequence_length - 1, max_distance,
+            alphabet, buffer, use_edit_distance);
+        if (result >= 0) {
             return result;
         }
     }
-    // Mismatch, try all children and deduct a point from the max distance.
-    max_distance -= 1;
-    if (max_distance < 0) {
-        return 0;
-    }
+    // Check all children
     for (uint32_t i=0; i < trie_node->alphabet_size; i++) {
-        if (i == node_index){
+        if (i == node_index) {
             continue;  // Already tried this route.
         }
         child = TrieNode_GET_CHILD(trie_node, i);
@@ -446,13 +473,22 @@ TrieNode_FindNearest(
         }
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
-            new_buffer);
-        if (result) {
-            return result; 
+            new_buffer, use_edit_distance);
+        if (result >= 0) {
+            return 1+ result; 
+        }
+        if (use_edit_distance) {
+            // deletion
+            result = TrieNode_FindNearest(
+                child, sequence, sequence_length, max_distance,
+                alphabet, new_buffer, use_edit_distance);
+            if (result >= 0) {
+                return 1 + result;
+            }
         }
     }
     // All children searched but could not find anything.
-    return 0;
+    return -1;
 }
 
 /**
@@ -669,19 +705,21 @@ Trie_add_sequence(Trie *self, PyObject *sequence) {
 }
 
 PyDoc_STRVAR(Trie_contains_sequence__doc__,
-"contains_sequence($self, sequence, /, max_hamming_distance=0)\n"
+"contains_sequence($self, sequence, /, max_distance=0, use_edit_distance=False)\n"
 "--\n"
 "\n"
 "Check if a sequence is present in the trie.\n"
 "\n"
 "Optionally check if a similar sequence is present at the specified\n"
-"maximum hamming distance.\n"
+"maximum distance.\n"
 "Sequences with unequal size are considered unequal.\n"
 "\n"
 "  sequence\n"
 "    An ASCII string.\n"
-"  max_hamming_distance\n"
-"    The maximal Hamming distance\n"
+"  max_distance\n"
+"    The maximal distance\n"
+"  use_edit_distance\n"
+"    Use edit (Levenshtein) distance instead of Hamming distance\n"
 "\n");
 
 #define TRIE_CONTAINS_SEQUENCE_METHODDEF    \
@@ -692,16 +730,12 @@ static PyObject *
 Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     PyObject *sequence = NULL;
     int max_distance = 0;
-    char *keywords[] = {"", "max_hamming_distance", NULL};
-    const char *format = "O|i:Trie.contains_sequence";
+    int use_edit_distance = 0;
+    char *keywords[] = {"", "max_distance", "use_edit_distance", NULL};
+    const char *format = "O!|ip:Trie.contains_sequence";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords,
-            &sequence, &max_distance)) {
-        return NULL;
-    }
-    if (!PyUnicode_CheckExact(sequence)) {
-        PyErr_Format(PyExc_TypeError, "Sequence must be a str, got %s",
-            Py_TYPE(sequence)->tp_name);
+            &PyUnicode_Type, &sequence, &max_distance, &use_edit_distance)) {
         return NULL;
     }
     if (!PyUnicode_IS_COMPACT_ASCII(sequence)) {
@@ -718,12 +752,12 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
         return NULL;
     }
     ssize_t ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
-                                       &(self->alphabet), NULL);
-    return PyBool_FromLong(ret);
+                                       &(self->alphabet), NULL, use_edit_distance);
+    return PyBool_FromLong(ret > -1);
 }
 
 PyDoc_STRVAR(Trie_pop_cluster__doc__,
-"pop_cluster($self, max_hamming_distance, /)\n"
+"pop_cluster($self, max_distance, use_edit_distance=False /)\n"
 "--\n"
 "\n"
 "Find a cluster of sequences within the same hamming distance and remove them\n"
@@ -738,20 +772,22 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 
 #define TRIE_POP_CLUSTER_METHODDEF    \
     {"pop_cluster", (PyCFunction)(void(*)(void))Trie_pop_cluster, \
-    METH_O, Trie_pop_cluster__doc__}
+    METH_VARARGS | METH_KEYWORDS, Trie_pop_cluster__doc__}
 
 static PyObject *
-Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
-    if (!PyLong_CheckExact(max_hamming_distance)) {
-        PyErr_Format(PyExc_TypeError, 
-                     "max_hamming_distance expected an int not %s", 
-                     Py_TYPE(max_hamming_distance)->tp_name);
+Trie_pop_cluster(Trie *self, PyObject *args, PyObject *kwargs) 
+{
+    int max_distance = 0;
+    int use_edit_distance = 0;
+    char *keywords[] = {"max_distance", "use_edit_distance", NULL};
+    const char *format = "i|p:Trie.pop_cluster";
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, format, keywords, 
+                                     &max_distance, &use_edit_distance)) {
         return NULL;
     }
-    int max_distance = PyLong_AsLong(max_hamming_distance);
     if (max_distance < 0) {
         PyErr_SetString(PyExc_ValueError, 
-                        "max_hamming distance should be larger than 0");
+                        "max_distance should be non-negative");
         return NULL;
     }
     if (self->root == NULL) {
@@ -824,20 +860,19 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyObject *template_tup;
     PyObject *template;
     PyObject *sequence;
-    ssize_t sequence_count;
     uint32_t deleted_count;
     while ((cluster_index != cluster_size) && (self->root != NULL)) {
         template_tup = PyList_GET_ITEM(cluster, cluster_index);
         template = PyTuple_GET_ITEM(template_tup, 1);
         template_sequence = PyUnicode_DATA(template);
         template_size = PyUnicode_GET_LENGTH(template);
-        sequence_count = TrieNode_FindNearest(self->root, template_sequence, template_size,
-            max_distance, &(self->alphabet), buffer);
-        if (sequence_count) {
+        sequence_size = TrieNode_FindNearest(self->root, template_sequence, template_size,
+            max_distance, &(self->alphabet), buffer, use_edit_distance);
+        if (sequence_size > -1) {
             sequence = PyUnicode_New(sequence_size, 127);
-            memcpy(PyUnicode_DATA(sequence), buffer, template_size);
+            memcpy(PyUnicode_DATA(sequence), buffer, sequence_size);
             deleted_count = TrieNode_DeleteSequence(&(self->root), buffer,
-                                          template_size, &(self->alphabet));
+                                          sequence_size, &(self->alphabet));
             if (!deleted_count) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 Py_DECREF(sequence);
@@ -846,7 +881,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
             }
             self->number_of_sequences -= deleted_count;
             tup = PyTuple_New(2);
-            PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(sequence_count));
+            PyTuple_SET_ITEM(tup, 0, PyLong_FromUnsignedLong(deleted_count));
             PyTuple_SET_ITEM(tup, 1, sequence);
             PyList_Append(cluster, tup);
             cluster_size += 1;
