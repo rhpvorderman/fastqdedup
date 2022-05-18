@@ -73,6 +73,36 @@ def test_trie_pop_cluster():
     assert not cluster_set
 
 
+def test_trie_pop_cluster_edit_distance():
+    trie = Trie()
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAA")
+    trie.add_sequence("AAAC")
+    trie.add_sequence("AAGC")
+    trie.add_sequence("AGGC")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("CCCG")
+    trie.add_sequence("TTCA")
+    trie.add_sequence("TTCC")
+    trie.add_sequence("TTTA")
+    trie.add_sequence("TTT")
+    trie.add_sequence("TTC")
+    cluster_list = []
+    while trie.number_of_sequences:
+        cluster = trie.pop_cluster(max_distance=1, use_edit_distance=True)
+        cluster_list.append(cluster)
+    cluster_set = [set(cluster) for cluster in cluster_list]
+    expected_clusters = [
+        {(2, "AAAA"), (1, "AAGC"), (1, "AAAC"), (1, "AGGC")},
+        {(2, "CCCG")},
+        {(1, "TTCA"), (1, "TTCC"), (1, "TTTA"), (1, "TTT"), (1, "TTC")},
+    ]
+    for expected_cluster in expected_clusters:
+        assert expected_cluster in cluster_set
+        cluster_set.remove(expected_cluster)
+    assert not cluster_set
+
+
 def test_trie_new_with_alphabet():
     trie = Trie(alphabet="acd")
     assert trie.alphabet == "acd"
