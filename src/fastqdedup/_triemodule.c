@@ -718,7 +718,7 @@ static PyObject *
 Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     PyObject *sequence = NULL;
     int max_distance = 0;
-    int use_edit_distance;
+    int use_edit_distance = 0;
     char *keywords[] = {"", "max_distance", "use_edit_distance", NULL};
     const char *format = "O!|ip:Trie.contains_sequence";
     if (!PyArg_ParseTupleAndKeywords(
