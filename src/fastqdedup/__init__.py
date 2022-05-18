@@ -271,7 +271,7 @@ def deduplicate_cluster(
     deduplicated_set: Set[int] = set()
     number_of_clusters = 0
     while trie.number_of_sequences:
-        cluster = trie.pop_cluster(max_distance)
+        cluster = trie.pop_cluster(max_distance, use_edit_distance)
         number_of_clusters += 1
         for key in cluster_dissection_func(cluster, max_distance, use_edit_distance):
             deduplicated_set.add(hash(key))
