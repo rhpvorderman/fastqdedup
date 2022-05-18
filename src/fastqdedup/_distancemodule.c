@@ -121,7 +121,7 @@ within_distance(PyObject *module,
     PyObject *string2 = NULL;
     int max_distance = 0;
     int use_edit_distance = 0;
-    char *keywords = {"", "", "max_distance", "use_edit_distance", NULL};
+    char *keywords[] = {"", "", "max_distance", "use_edit_distance", NULL};
     char *format = "O!O!i|p:within_distance";
     if (!PyArg_ParseTupleAndKeywords(
             args, kwargs, format, keywords,
