@@ -387,13 +387,13 @@ TrieNode_FindNearest(
     if TrieNode_IS_TERMINAL(trie_node) {
         uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
         uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
-        if (use_edit_distance && 
-            !within_edit_distance(sequence, sequence_length, 
+        if (use_edit_distance) { 
+            if (!within_edit_distance(sequence, sequence_length, 
                                   suffix, suffix_length, 
-                                  max_distance)
-                                  ) {
-                                        return -1;
-                                    }
+                                  max_distance)){
+                return -1;
+            }
+        }
         else if (!within_hamming_distance(sequence, sequence_length, 
                                     suffix, suffix_length, 
                                     max_distance)) {
@@ -410,7 +410,11 @@ TrieNode_FindNearest(
     }
 
     if (sequence_length == 0) {
-        return 0;
+        if (trie_node->count) {
+            return 0;
+        } else {
+            return -1;
+        }
     }
 
     uint8_t character = sequence[0];
