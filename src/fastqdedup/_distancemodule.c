@@ -102,7 +102,7 @@ PyDoc_STRVAR(within_distance__doc__,
 "  max_distance\n"
 "     The maximum distance\n"
 "  use_edit_distance\n"
-"    Use edit (Levensteihn) distance instead of Hamming distance"
+"    Use edit (Levenshtein) distance instead of Hamming distance"
 "\n"
 "Returns an integer representing the hamming distance.\n"
 "Raises a ValueError when strings are not of the same length.\n"

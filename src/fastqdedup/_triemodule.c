@@ -719,7 +719,7 @@ PyDoc_STRVAR(Trie_contains_sequence__doc__,
 "  max_distance\n"
 "    The maximal distance\n"
 "  use_edit_distance\n"
-"    Use edit (Levensteihn) distance instead of Hamming distance\n"
+"    Use edit (Levenshtein) distance instead of Hamming distance\n"
 "\n");
 
 #define TRIE_CONTAINS_SEQUENCE_METHODDEF    \

@@ -340,7 +340,7 @@ def argument_parser() -> argparse.ArgumentParser:
                         const=1.0,
                         help="Do not filter on average per base error rate.")
     parser.add_argument("--edit", action="store_true",
-                        help="Use edit (Levensteihn) distance instead of "
+                        help="Use edit (Levenshtein) distance instead of "
                              "Hamming distance.")
     parser.add_argument(
         "-c", "--cluster-dissection-method",

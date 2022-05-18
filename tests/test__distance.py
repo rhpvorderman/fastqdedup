@@ -50,6 +50,6 @@ def test_within_distance_hamming(string1, string2, max_distance, result):
         ("GATTACA", "GATTAA", 0, False)
     ]
 )
-def test_within_distance_levenstein(string1, string2, max_distance, result):
+def test_within_distance_levenshtein(string1, string2, max_distance, result):
     assert within_distance(string1, string2, max_distance,
                            use_edit_distance=True) is result
