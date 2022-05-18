@@ -396,11 +396,12 @@ def main():
     cluster_dissection_func = CLUSTER_DISSECTION_METHODS[
         args.cluster_dissection_method]
     use_edit_distance = args.edit
+    distance_name = "Levenshtein" if use_edit_distance else "Hamming"
     timer = Timer()
     logger.info(f"Input files: {', '.join(input_files)}")
     logger.info(f"Output files: {', '.join(output_files)}")
     logger.info(f"Check lengths: {args.check_lengths}")
-    logger.info(f"Maximum hamming distance: {max_distance}")
+    logger.info(f"Maximum {distance_name} distance: {max_distance}")
     logger.info(f"Maximum average error rate: {max_average_error_rate}")
     logger.info(f"Cluster dissection method: {args.cluster_dissection_method}")
     deduplicate_cluster(input_files, output_files, check_slices, max_distance,
