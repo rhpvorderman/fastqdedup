@@ -371,7 +371,7 @@ TrieNode_DeleteSequence(
  * @param buffer a buffer to store the found sequence in. Can be set to NULL 
  *               for no storage. The buffer should have a memory size of 
  *               sequence_length.
- * @return ssize_t the count of the found sequences. If 0 this 
+ * @return ssize_t The size of the sequence. If -1 this 
  *                indicates the sequence was not found.
  */
 static ssize_t
@@ -392,25 +392,25 @@ TrieNode_FindNearest(
                                   suffix, suffix_length, 
                                   max_distance)
                                   ) {
-                                        return 0;
+                                        return -1;
                                     }
         else if (!within_hamming_distance(sequence, sequence_length, 
                                     suffix, suffix_length, 
                                     max_distance)) {
-                                        return 0;
+                                        return -1;
                                     }
         if (buffer) {
             memcpy(buffer, suffix, suffix_length);
         }
-        return trie_node->count;
+        return suffix_length;
     }
     if (use_edit_distance && sequence_length <= (uint32_t)max_distance && trie_node->count) {
         // We are within edit distance and a sequence exists here. Exit early.    
-        return trie_node->count;       
+        return 0;       
     }
 
     if (sequence_length == 0) {
-        return trie_node->count;
+        return 0;
     }
 
     uint8_t character = sequence[0];
@@ -429,21 +429,21 @@ TrieNode_FindNearest(
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
             new_buffer, use_edit_distance);
-        if (result) {
-            return result;
+        if (result >= 0) {
+            return 1 + result;
         }
     }
     // Mismatch, deduct a point from the max distance.
     max_distance -= 1;
     if (max_distance < 0) {
-        return 0;
+        return -1;
     }
     if (use_edit_distance) {
         // Check if problem can be solved with an insertion.
         result = TrieNode_FindNearest(
             trie_node, sequence + 1, sequence_length - 1, max_distance,
             alphabet, buffer, use_edit_distance);
-        if (result) {
+        if (result >= 0) {
             return result;
         }
     }
@@ -462,21 +462,21 @@ TrieNode_FindNearest(
         result = TrieNode_FindNearest(
             child, sequence + 1, sequence_length -1, max_distance, alphabet, 
             new_buffer, use_edit_distance);
-        if (result) {
-            return result; 
+        if (result >= 0) {
+            return 1+ result; 
         }
         if (use_edit_distance) {
             // deletion
             result = TrieNode_FindNearest(
                 child, sequence, sequence_length, max_distance,
                 alphabet, new_buffer, use_edit_distance);
-            if (result) {
-                return result;
+            if (result >= 0) {
+                return 1 + result;
             }
         }
     }
     // All children searched but could not find anything.
-    return 0;
+    return -1;
 }
 
 /**
@@ -743,11 +743,11 @@ Trie_contains_sequence(Trie *self, PyObject *args, PyObject* kwargs) {
     }
     ssize_t ret = TrieNode_FindNearest(self->root, seq, seq_size, max_distance, 
                                        &(self->alphabet), NULL, 0);
-    return PyBool_FromLong(ret);
+    return PyBool_FromLong(ret > -1);
 }
 
 PyDoc_STRVAR(Trie_pop_cluster__doc__,
-"pop_cluster($self, max_hamming_distance, /)\n"
+"pop_cluster($self, max_distance, use_edit_distance=False /)\n"
 "--\n"
 "\n"
 "Find a cluster of sequences within the same hamming distance and remove them\n"
@@ -762,20 +762,22 @@ PyDoc_STRVAR(Trie_pop_cluster__doc__,
 
 #define TRIE_POP_CLUSTER_METHODDEF    \
     {"pop_cluster", (PyCFunction)(void(*)(void))Trie_pop_cluster, \
-    METH_O, Trie_pop_cluster__doc__}
+    METH_VARARGS | METH_KEYWORDS, Trie_pop_cluster__doc__}
 
 static PyObject *
-Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
-    if (!PyLong_CheckExact(max_hamming_distance)) {
-        PyErr_Format(PyExc_TypeError, 
-                     "max_hamming_distance expected an int not %s", 
-                     Py_TYPE(max_hamming_distance)->tp_name);
+Trie_pop_cluster(Trie *self, PyObject *args, PyObject *kwargs) 
+{
+    int max_distance = 0;
+    int use_edit_distance = 0;
+    char *keywords[] = {"max_distance", "use_edit_distance", NULL};
+    const char *format = "i|p:Trie.pop_cluster";
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, format, keywords, 
+                                     &max_distance, &use_edit_distance)) {
         return NULL;
     }
-    int max_distance = PyLong_AsLong(max_hamming_distance);
     if (max_distance < 0) {
         PyErr_SetString(PyExc_ValueError, 
-                        "max_hamming distance should be larger than 0");
+                        "max_hamming distance should be non-negative");
         return NULL;
     }
     if (self->root == NULL) {
@@ -848,20 +850,19 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
     PyObject *template_tup;
     PyObject *template;
     PyObject *sequence;
-    ssize_t sequence_count;
     uint32_t deleted_count;
     while ((cluster_index != cluster_size) && (self->root != NULL)) {
         template_tup = PyList_GET_ITEM(cluster, cluster_index);
         template = PyTuple_GET_ITEM(template_tup, 1);
         template_sequence = PyUnicode_DATA(template);
         template_size = PyUnicode_GET_LENGTH(template);
-        sequence_count = TrieNode_FindNearest(self->root, template_sequence, template_size,
-            max_distance, &(self->alphabet), buffer, 0);
-        if (sequence_count) {
+        sequence_size = TrieNode_FindNearest(self->root, template_sequence, template_size,
+            max_distance, &(self->alphabet), buffer, use_edit_distance);
+        if (sequence_size > -1) {
             sequence = PyUnicode_New(sequence_size, 127);
-            memcpy(PyUnicode_DATA(sequence), buffer, template_size);
+            memcpy(PyUnicode_DATA(sequence), buffer, sequence_size);
             deleted_count = TrieNode_DeleteSequence(&(self->root), buffer,
-                                          template_size, &(self->alphabet));
+                                          sequence_size, &(self->alphabet));
             if (!deleted_count) {
                 PyErr_SetString(PyExc_RuntimeError, "Retrieved undeletable sequence.");
                 Py_DECREF(sequence);
@@ -870,7 +871,7 @@ Trie_pop_cluster(Trie *self, PyObject *max_hamming_distance) {
             }
             self->number_of_sequences -= deleted_count;
             tup = PyTuple_New(2);
-            PyTuple_SET_ITEM(tup, 0, PyLong_FromSsize_t(sequence_count));
+            PyTuple_SET_ITEM(tup, 0, PyLong_FromUnsignedLong(deleted_count));
             PyTuple_SET_ITEM(tup, 1, sequence);
             PyList_Append(cluster, tup);
             cluster_size += 1;
