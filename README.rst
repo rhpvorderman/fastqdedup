@@ -34,8 +34,9 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
 
 .. code-block::
 
-    usage: fastqdedup [-h] [--check-lengths CHECK_LENGTHS] [-o OUTPUT] [-p PREFIX]
-                      [-d MAX_DISTANCE] [-v] [-q]
+    usage: fastqdedup [-h] [-l CHECK_LENGTHS] [-o OUTPUT] [-p PREFIX]
+                      [-d MAX_DISTANCE] [-e MAX_AVERAGE_ERROR_RATE] [-E] [--edit]
+                      [-c {highest_count,adjacency,directional}] [-v] [-q]
                       FASTQ [FASTQ ...]
 
     positional arguments:
@@ -44,7 +45,7 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
 
     optional arguments:
       -h, --help            show this help message and exit
-      --check-lengths CHECK_LENGTHS
+      -l CHECK_LENGTHS, --check-lengths CHECK_LENGTHS
                             Comma-separated string with the maximum string check
                             length of each file. For example 'fastqdedup --check-
                             lengths 16,8 R1.fastq R2.fastq' only checks the first
@@ -61,6 +62,24 @@ The memory usage can be substantially reduced by setting ``--check-lengths``.
       -d MAX_DISTANCE, --max-distance MAX_DISTANCE
                             The Hamming distance at which inputs are considered
                             different. Default: 1.
+      -e MAX_AVERAGE_ERROR_RATE, --max-average-error-rate MAX_AVERAGE_ERROR_RATE
+                            The maximum average per base error rate for each FASTQ
+                            record. Average is evaluated over bases taken into
+                            account by --check-lengths.Default: 0.001
+      -E, --no-average-error-rate-filter
+                            Do not filter on average per base error rate.
+      --edit                Use edit (Levenshtein) distance instead of Hamming
+                            distance.
+      -c {highest_count,adjacency,directional}, --cluster-dissection-method {highest_count,adjacency,directional}
+                            How to approach clusters with multiple reads.
+                            'highest_count' selects only one read, the one with
+                            the highest count. 'adjacency' starts from the read
+                            with the highest count and selects all reads that are
+                            within the specified distance. The process is repeated
+                            for the remaining reads. 'directional' is similar to
+                            adjacency but uses counts to determine if an error is
+                            a PCR/sequencing artifact or derived from a difference
+                            in the molecule (default).
       -v, --verbose         Increase log verbosity.
       -q, --quiet           Reduce log verbosity.
 
