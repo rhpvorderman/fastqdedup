@@ -57,12 +57,12 @@ within_edit_distance(
             result = within_edit_distance(string1 + 1, 
                                           string1_length -1,
                                           string2,
-                                          string2_length -1,
+                                          string2_length,
                                           max_distance);
             if (result) return result;
             // Deletion
-            result = within_edit_distance(string1 + 1, 
-                                          string1_length - 1, 
+            result = within_edit_distance(string1, 
+                                          string1_length, 
                                           string2 + 1,
                                           string2_length -1,
                                           max_distance);
