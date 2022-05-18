@@ -178,12 +178,11 @@ def fastq_files_to_records(
     """
     input_readers = [file_to_fastq_reader(f) for f in input_files]
     for records in zip(*input_readers):  # type: Tuple[dnaio.SequenceRecord, ...]
-        first_record = records[0]
-        for record in records[1:]:
-            if not first_record.is_mate(record):
-                raise dnaio.FastqFormatError(
-                    f"FASTQ files not in sync: {first_record.name} is not a "
-                    f"mate of {record.name}", None)
+        if len(records) > 1 and not dnaio.records_are_mates(*records):
+            raise dnaio.FastqFormatError(
+                f"FASTQ files not in sync: "
+                f"{', '.join(record.name for record in records)} are not mates.",
+                line=None)
         yield records
 
 

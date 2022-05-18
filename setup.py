@@ -48,7 +48,7 @@ setup(
         "License :: OSI Approved :: MIT License",
     ],
     python_requires=">=3.6",
-    install_requires=["dnaio >=0.8.0"],
+    install_requires=["dnaio >=0.9.0"],
     ext_modules=[
         Extension("fastqdedup._trie", ["src/fastqdedup/_triemodule.c"]),
         Extension("fastqdedup._distance", ["src/fastqdedup/_distancemodule.c"]),
