@@ -52,16 +52,21 @@ def test_trie_subseq():
     assert not trie.contains_sequence("GATTAC")
 
 
-def test_trie_subseq_edit_distance():
+@pytest.mark.parametrize(
+    ["sequence", "distance", "result"], [
+        ("GATTA", 0, True),
+        ("GATTACA", 0, True),
+        ("GATTAC", 1, True),
+        ("G", 4, True),
+        ("GATTAT", 2, True),
+        ("UU", 2, False),
+        ("UUUUU", 3, False)
+    ])
+def test_trie_subseq_edit_distance(sequence, distance, result):
     trie = Trie()
     trie.add_sequence("GATTACA")
     trie.add_sequence("GATTA")
-    assert trie.contains_sequence("GATTA")
-    assert trie.contains_sequence("GATTACA")
-    assert trie.contains_sequence("GATTAC", max_distance=1, use_edit_distance=True)
-    assert trie.contains_sequence("G", max_distance=4, use_edit_distance=True)
-    assert trie.contains_sequence("GATTAT", max_distance=2, use_edit_distance=True)
-    assert not trie.contains_sequence("UU", max_distance=2, use_edit_distance=True)
+    assert trie.contains_sequence(sequence, distance, use_edit_distance=True) is result
 
 
 def test_trie_pop_cluster():
