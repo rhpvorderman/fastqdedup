@@ -97,9 +97,21 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
  * that it makes it easy to expand or shrink the tree as desired.
  */
 typedef struct {
-    uint32_t alphabet_size;
+    union {
+        struct {
+            uint32_t is_terminal: 1;
+            uint32_t alphabet_size:31;
+        };
+        struct {
+            uint32_t _is_terminal: 1;
+            uint32_t suffix_size: 31;
+        };
+    };
     uint32_t count;
-    void *children[0];
+    union {
+        void *children[0];
+        char suffix[0];
+    };
 } TrieNode;
 
 #define TRIE_NODE_TERMINAL_FLAG     0x80000000
