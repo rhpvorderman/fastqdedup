@@ -96,7 +96,8 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
  * The advantage of storing both normal and leaf nodes in the same struct is 
  * that it makes it easy to expand or shrink the tree as desired.
  */
-typedef struct {
+
+typedef struct TrieNodeStruct {
     union {
         struct {
             uint32_t is_terminal: 1;
@@ -109,21 +110,12 @@ typedef struct {
     };
     uint32_t count;
     union {
-        void *children[0];
-        char suffix[0];
+        struct TrieNodeStruct *children[0];
+        uint8_t suffix[0];
     };
 } TrieNode;
 
-#define TRIE_NODE_TERMINAL_FLAG     0x80000000
-#define TRIE_NODE_SUFFIX_SIZE_MASK  0x7FFFFFFF
 #define TRIE_NODE_SUFFIX_MAX_SIZE   0x7FFFFFFF
-#define TrieNode_IS_TERMINAL(n) (n->alphabet_size & TRIE_NODE_TERMINAL_FLAG)
-#define TrieNode_GET_SUFFIX_SIZE(n) (assert (TrieNode_IS_TERMINAL(n)), \
-    n->alphabet_size & TRIE_NODE_SUFFIX_SIZE_MASK)
-#define _TrieNode_SET_SUFFIX_SIZE(n, s) (n->alphabet_size = TRIE_NODE_TERMINAL_FLAG | s)
-#define TrieNode_GET_SUFFIX(n) (assert (TrieNode_IS_TERMINAL(n)), \
-    (uint8_t *)n->children)
-#define TrieNode_GET_CHILD(n, i) ((TrieNode *)(n->children[i]))
 
 /**
  * @brief Get the child of parent for a given index. Always return NULL when
@@ -132,11 +124,11 @@ typedef struct {
  */
 static inline TrieNode *
 TrieNode_GetChild(TrieNode *parent, size_t index) {
-    assert(!TrieNode_IS_TERMINAL(parent));
+    assert(!parent->is_terminal);
     if (index >= parent->alphabet_size) {
         return NULL;
     }
-    return (TrieNode *)(parent->children[index]);
+    return parent->children[index];
 }
 
 
@@ -155,7 +147,7 @@ TrieNode_Resize(TrieNode *trie_node, uint32_t alphabet_size) {
         return trie_node;
     }
     size_t old_alphabet_size = 
-        TrieNode_IS_TERMINAL(trie_node) ? 0 : trie_node->alphabet_size;
+        trie_node->is_terminal ? 0 : trie_node->alphabet_size;
     size_t new_size = sizeof(TrieNode) + sizeof(TrieNode *) * alphabet_size;
     TrieNode *new_node = PyMem_Realloc(trie_node, new_size);
     if (new_node == NULL) {
@@ -179,12 +171,12 @@ TrieNode_Destroy(TrieNode *trie_node) {
     if (trie_node == NULL) {
         return;
     }
-    if (!TrieNode_IS_TERMINAL(trie_node)){
+    if (!trie_node->is_terminal){
         // Destroy children first
         uint32_t alphabet_size = trie_node->alphabet_size;
         uint32_t i;
         for (i=0; i < alphabet_size; i += 1){
-            TrieNode_Destroy(TrieNode_GET_CHILD(trie_node, i));
+            TrieNode_Destroy(trie_node->children[i]);
         }
     }
     PyMem_Free(trie_node);
@@ -211,9 +203,10 @@ TrieNode_NewLeaf(uint8_t *suffix, uint32_t suffix_size, uint32_t sequence_count)
         PyErr_NoMemory();
         return NULL;
     }
-    _TrieNode_SET_SUFFIX_SIZE(new, suffix_size);
+    new->is_terminal = 1;
+    new->suffix_size = suffix_size;
     new->count = sequence_count;
-    memcpy(TrieNode_GET_SUFFIX(new), suffix, suffix_size);
+    memcpy(new->suffix, suffix, suffix_size);
     return new;
 }
 
@@ -240,16 +233,16 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
         trie_node_address[0] = TrieNode_NewLeaf(sequence, sequence_size, sequence_count);
         return 0;
     }
-    if (TrieNode_IS_TERMINAL(this_node)) {
-        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
+    if (this_node->is_terminal) {
+        uint32_t suffix_size = this_node->suffix_size;
         if (sequence_size == suffix_size) {
-            if (memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
+            if (memcmp(this_node->suffix, sequence, sequence_size) == 0){
                 this_node->count += sequence_count;
                 return 0;
             }
         }
         // Store the suffix in a temporary space and add  it to this node.
-        uint8_t *suffix = TrieNode_GET_SUFFIX(this_node);
+        uint8_t *suffix = this_node->suffix;
         uint8_t *tmp = PyMem_Malloc(suffix_size);
         if (tmp == NULL) {
             PyErr_NoMemory();
@@ -316,12 +309,12 @@ TrieNode_DeleteSequence(
 {
     TrieNode *this_node = trie_node_address[0];
     uint32_t count;
-    if (TrieNode_IS_TERMINAL(this_node)) {
-        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(this_node);
+    if (this_node->is_terminal) {
+        uint32_t suffix_size = this_node->suffix_size;
         if (!(sequence_size == suffix_size)) {
             return 0;
         }
-        if (!memcmp(TrieNode_GET_SUFFIX(this_node), sequence, sequence_size) == 0){
+        if (!memcmp(this_node->suffix, sequence, sequence_size) == 0){
             return 0;
         }
         count = this_node->count;
@@ -347,14 +340,14 @@ TrieNode_DeleteSequence(
         return 0;
     }
     uint32_t ret = TrieNode_DeleteSequence(
-        (TrieNode **)&(this_node->children[node_index]), 
+        &(this_node->children[node_index]), 
         sequence + 1, sequence_size - 1, alphabet);
     
     // Make sure the tree is properly pruned so there are no dead-end nodes
     // that will mess up the search algorithms. 
     if (ret) {
         for (size_t i=0; i < this_node->alphabet_size; i+=1) {
-            if (TrieNode_GET_CHILD(this_node, i) != NULL) {
+            if (this_node->children[i] != NULL) {
                 return ret;
             }
         }
@@ -396,9 +389,9 @@ TrieNode_FindNearest(
     uint8_t *buffer,
     int use_edit_distance) 
 {
-    if TrieNode_IS_TERMINAL(trie_node) {
-        uint32_t suffix_length = TrieNode_GET_SUFFIX_SIZE(trie_node); 
-        uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
+    if (trie_node->is_terminal) {
+        uint32_t suffix_length = trie_node->suffix_size; 
+        uint8_t *suffix = trie_node->suffix;
         if (use_edit_distance) { 
             if (!within_edit_distance(sequence, sequence_length, 
                                   suffix, suffix_length, 
@@ -476,7 +469,7 @@ TrieNode_FindNearest(
         if (i == node_index) {
             continue;  // Already tried this route.
         }
-        child = TrieNode_GET_CHILD(trie_node, i);
+        child = trie_node->children[i];
         if (child == NULL) {
             continue;
         }
@@ -523,12 +516,12 @@ TrieNode_GetSequence(
     uint8_t *buffer, 
     uint32_t buffer_size) 
 {
-    if (TrieNode_IS_TERMINAL(trie_node)) {
-        uint32_t suffix_size = TrieNode_GET_SUFFIX_SIZE(trie_node);
+    if (trie_node->is_terminal) {
+        uint32_t suffix_size = trie_node->suffix_size;
         if (suffix_size > buffer_size) {
             return -1;
         }
-        uint8_t *suffix = TrieNode_GET_SUFFIX(trie_node);
+        uint8_t *suffix = trie_node->suffix;
         memcpy(buffer, suffix, suffix_size);
         return suffix_size;
     }
@@ -540,7 +533,7 @@ TrieNode_GetSequence(
     uint32_t i;
     TrieNode *child;
     for (i=0; i<alphabet_size; i+=1) {
-        child = TrieNode_GET_CHILD(trie_node, i);
+        child = trie_node->children[i];
         if (child == NULL) {
             continue;
         }
@@ -566,16 +559,14 @@ TrieNode_GetMemorySize(TrieNode *trie_node) {
     }
     size_t size = sizeof(TrieNode);  // Basic size
     // Calculate size allocated to children member
-    if (TrieNode_IS_TERMINAL(trie_node)) {
-        return size + TrieNode_GET_SUFFIX_SIZE(trie_node);
+    if (trie_node->is_terminal) {
+        return size + trie_node->suffix_size;
     }
     size += (sizeof(TrieNode *) * trie_node->alphabet_size);
 
     // Calculate size of children
-    TrieNode *child;
     for (uint32_t i=0; i<trie_node->alphabet_size; i+=1) {
-        child = TrieNode_GET_CHILD(trie_node, i);
-        size += TrieNode_GetMemorySize(child);
+        size += TrieNode_GetMemorySize(trie_node->children[i]);
     }
     return size;
 }
@@ -589,14 +580,14 @@ TrieNode_GetStats(TrieNode *trie_node,
         return;
     }
     size_t *layer_stats = stats + (alphabet_size + 1) * layer;
-    if (TrieNode_IS_TERMINAL(trie_node)) {
+    if (trie_node->is_terminal) {
         // Store terminal nodes at index 0
         layer_stats[0] += 1;
         return;
     }
     layer_stats[trie_node->alphabet_size] += 1;
     for (size_t i=0; i<trie_node->alphabet_size; i+=1) {
-        TrieNode_GetStats(TrieNode_GET_CHILD(trie_node, i),
+        TrieNode_GetStats(trie_node->children[i],
                           layer + 1,
                           alphabet_size,
                           stats);
