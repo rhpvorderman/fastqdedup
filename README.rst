@@ -2,7 +2,9 @@ fastqdedup
 ==========
 
 Fastqdedup deduplicates FASTQ files with UMI data while taking sequencing
-errors into account.
+errors into account. Fastqdedup is based on `HUMID
+<https://github.com/jfjlaros/HUMID>`_ and was created to explore an alternative
+implementation. HUMID is currently more actively developed.
 
 Fastqdedup can operate on one or multiple FASTQ files. So single reads with
 prepended UMIs, paired reads with prepended UMIs or paired reads with separate
