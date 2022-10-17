@@ -250,6 +250,7 @@ TrieNode_AddSequence(TrieNode **trie_node_address,
         }
         memcpy(tmp, suffix, suffix_size);
         this_node->alphabet_size = 0;
+        this_node->is_terminal = 0;
         uint32_t count = this_node->count;
         this_node->count = 0;
         int ret = TrieNode_AddSequence(
