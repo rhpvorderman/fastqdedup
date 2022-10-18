@@ -69,7 +69,8 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
 /**
  * @brief A node in a trie.
  * 
- * Each node stores its children in children. These are of type 'TrieNode *'. 
+ * Each node stores its children at the end of the struct. These are of type
+ * 'TrieNode *'.
  * 
  * The alphabet_size signifies how many children are stored. This does not have
  * to reflect the alphabet size in the application. Say the alphabet is ACGT 
@@ -80,13 +81,14 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
  * higher is NULL. The TrieNode_GetChild function has codes this behaviour. 
  * When nodes are sparsely populated this saves a lot of memory.
  * 
- * The highest bit of alphabet_size is used to store whether the node is 
+ * One bit is used to store whether the node is
  * terminal, in other words a leaf node. When a node is a leaf node, it has a
- * suffix, which is stored at the address of children. This suffix is of type
+ * suffix, which is stored at the end of the struct. This suffix is of type
  * uint8_t. It allows for storing sequences efficiently as in a radix tree, at
  * the terminal ends of the trie.
- * When this is the case, the remaining 31 bits of the alphabet_size store the
- * suffix size.
+ * When this is the case suffix size is used to hold the size at the same
+ * place of alphabet size in the struct. (alphabet size not being necessary
+ * anymore.)
  * 
  * A count higher than 0 signifies that there are sequences that have this node 
  * as last node. The amount of sequences is stored in this count. Nodes with
