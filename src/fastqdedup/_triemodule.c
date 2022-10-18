@@ -99,23 +99,18 @@ Alphabet_InitializeFromString(Alphabet *alphabet, uint8_t *string) {
 
 typedef struct TrieNodeStruct {
     union {
-        struct {
-            uint32_t is_terminal: 1;
-            uint32_t alphabet_size:31;
-        };
-        struct {
-            uint32_t _is_terminal: 1;
-            uint32_t suffix_size: 31;
-        };
+       uint32_t alphabet_size;
+       uint32_t suffix_size;
     };
-    uint32_t count;
+    uint32_t count:31;
+    uint32_t is_terminal:1;
     union {
         struct TrieNodeStruct *children[0];
         uint8_t suffix[0];
     };
 } TrieNode;
 
-#define TRIE_NODE_SUFFIX_MAX_SIZE   0x7FFFFFFF
+#define TRIE_NODE_SUFFIX_MAX_SIZE UINT32_MAX
 
 /**
  * @brief Get the child of parent for a given index. Always return NULL when
