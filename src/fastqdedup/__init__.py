@@ -275,7 +275,7 @@ def deduplicate_cluster(
         for key in cluster_dissection_func(cluster, max_distance, use_edit_distance):
             deduplicated_set.add(hash(key))
 
-    del(trie)
+    del trie
     logger.info(f"Found {len(deduplicated_set)} distinct reads "
                 f"in {number_of_clusters} clusters."
                 f"({timer.get_difference()})")
